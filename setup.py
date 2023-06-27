@@ -17,16 +17,14 @@ test_requirements = ['pytest>=3', ]
 setup(
     author="Davor Škalec",
     author_email='davor.skalec@encode.hr',
-    python_requires='>=3.6',
+    python_requires='>=3.11',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.11',
     ],
     description="Reports template system for generating reports from templates.",
     entry_points={
@@ -43,7 +41,7 @@ setup(
     packages=find_packages(include=['ieasyreports', 'ieasyreports.*']),
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/skalecdavor/ieasyreports',
+    url='https://github.com/hydrosolutions/ieasyreports',
     version='0.1.0',
     zip_safe=False,
 )
