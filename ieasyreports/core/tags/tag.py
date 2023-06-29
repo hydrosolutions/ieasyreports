@@ -1,11 +1,11 @@
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 
 class Tag:
     def __init__(
         self,
         name: str,
-        value_fn: Callable,
+        replacement_value: Union[Callable, str],
         description: Optional[str] = None,
         types: Optional[list[str]] = None,
         data: Optional[bool] = False,
@@ -14,7 +14,7 @@ class Tag:
         custom_number_format_fn: Optional[Callable] = None
     ):
         self.name = name
-        self.value_fn = value_fn
+        self.replacement_value = replacement_value
         self.description = description
         self.types = types
         self.data = data
@@ -33,9 +33,13 @@ class Tag:
 
     def replace(self, content, context):
         if self.name in content:
-            replacement_value = self.value_fn(context)
+            replacement_value = self.replacement_value(context) if \
+                self.has_callable_value_fn() else self.replacement_value
             content = content.replace(self.name, replacement_value)
         return content
+
+    def has_callable_value_fn(self):
+        return isinstance(self.replacement_value, Callable)
 
     def has_custom_format(self):
         return self.custom_number_format_fn is not None

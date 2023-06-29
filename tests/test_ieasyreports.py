@@ -6,8 +6,7 @@ import pytest
 
 from click.testing import CliRunner
 
-from ieasyreports import ieasyreports
-from ieasyreports import cli
+from ieasyreports.commands import parse_template
 
 
 @pytest.fixture

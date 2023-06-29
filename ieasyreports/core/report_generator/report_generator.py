@@ -1,10 +1,10 @@
 from typing import Dict, List
 import openpyxl
 
-from ieasyreports.core.tag import Tag
+from ieasyreports.core.tags.tag import Tag
 
 
-class ReportGenerator:
+class DefaultReportGenerator:
     def __init__(self, tags: List[Tag], template: str):
         self.tags = {tag.name: tag for tag in tags}
         self.template = self.open_template_file(template)
