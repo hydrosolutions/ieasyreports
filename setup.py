@@ -29,7 +29,7 @@ setup(
     description="Reports template system for generating reports from templates.",
     entry_points={
         'console_scripts': [
-            'ieasyreports=ieasyreports.cli:main',
+            'ieasyreports=ieasyreports.cli:cli',
         ],
     },
     install_requires=requirements,
