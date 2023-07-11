@@ -1,5 +1,10 @@
 from typing import Any, Callable, Dict, Optional, Union
 
+from ieasyreports.settings import Settings
+from ieasyreports.exceptions import InvalidSpecialParameterException
+
+settings = Settings()
+
 
 class Tag:
     def __init__(
@@ -32,10 +37,10 @@ class Tag:
         return hash(self.name)
 
     def replace(self, content, context):
-        if self.name in content:
+        if self.full_tag in content:
             replacement_value = self.replacement_value(context) if \
                 self.has_callable_value_fn() else self.replacement_value
-            content = content.replace(self.name, replacement_value)
+            content = content.replace(self.full_tag, replacement_value)
         return content
 
     def has_callable_value_fn(self):
@@ -48,3 +53,15 @@ class Tag:
         if self.has_custom_format():
             return self.custom_number_format_fn(value)
         return value
+
+    @property
+    def full_tag(self, special=None):
+        if special:
+            if special not in (settings.header_tag, settings.data_tag):
+                raise InvalidSpecialParameterException(f'{special} is not a supported value.')
+            else:
+                special_extension = f'{special}{settings.split_symbol}'
+        else:
+            special_extension = ''
+
+        return f'{settings.tag_start_symbol}{special_extension}{self.name}{settings.tag_end_symbol}'
