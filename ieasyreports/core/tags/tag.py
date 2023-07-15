@@ -10,20 +10,16 @@ class Tag:
     def __init__(
         self,
         name: str,
-        replacement_value: Union[Callable, str],
+        get_value_fn: Union[Callable, str],
         description: Optional[str] = None,
         types: Optional[list[str]] = None,
-        data: Optional[bool] = False,
-        header: Optional[bool] = False,
         date_offset: Optional[Dict[str, int]] = None,
         custom_number_format_fn: Optional[Callable] = None
     ):
         self.name = name
-        self.replacement_value = replacement_value
+        self.get_value_fn = get_value_fn
         self.description = description
         self.types = types
-        self.data = data
-        self.header = header
         self.date_offset = date_offset
         self.custom_number_format_fn = custom_number_format_fn
 
@@ -36,15 +32,15 @@ class Tag:
     def __hash__(self):
         return hash(self.name)
 
-    def replace(self, content, context):
+    def replace(self, content, **kwargs):
         if self.full_tag in content:
-            replacement_value = self.replacement_value(context) if \
-                self.has_callable_value_fn() else self.replacement_value
+            replacement_value = self.get_value_fn(**kwargs) if \
+                self.has_callable_value_fn() else self.get_value_fn
             content = content.replace(self.full_tag, replacement_value)
         return content
 
     def has_callable_value_fn(self):
-        return isinstance(self.replacement_value, Callable)
+        return isinstance(self.get_value_fn, Callable)
 
     def has_custom_format(self):
         return self.custom_number_format_fn is not None
