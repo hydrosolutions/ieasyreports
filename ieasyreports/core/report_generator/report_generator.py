@@ -10,6 +10,8 @@ from ieasyreports.exceptions import (
     MissingDataTagException
 )
 
+from ieasyreports.examples.dummy_sites import Site, SITES
+
 settings = Settings()
 
 
@@ -115,13 +117,31 @@ class DefaultReportGenerator:
     def save_report(self, name: str):
         self.template.save(os.path.join(settings.report_output_path, name))
 
-    def generate_report(self):
+    def generate_report(self, sites: List[Site] = SITES):
         if not self.validated:
             raise TemplateNotValidatedException(
                 "Template must be validated first. Did you forget to call the `.validate()` method?"
             )
         for tag, cells in self.general_tags.items():
             for cell in cells:
-                cell.value = tag.replace(cell.value, {})
+                cell.value = tag.replace(cell.value)
+
+        grouped_sites = {}
+        for site in sites:
+            header_value = self.header_tag.replace(
+                self.header_cell.value,
+                site=site,
+                special="HEADER"
+            )
+            print(self.header_tag)
+            print(header_value)
+
+            if header_value not in grouped_sites:
+                grouped_sites[header_value] = []
+            grouped_sites[header_value] = site
+
+        # insert empty columns
+        print(grouped_sites)
+
 
         self.save_report("basic_report.xlsx")

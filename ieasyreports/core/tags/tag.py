@@ -33,10 +33,14 @@ class Tag:
         return hash(self.name)
 
     def replace(self, content, **kwargs):
-        if self.full_tag in content:
+        if "special" in kwargs:
+            full_tag = self.full_tag(special=kwargs.pop("special"))
+        else:
+            full_tag = self.full_tag()
+        if full_tag in content:
             replacement_value = self.get_value_fn(**kwargs) if \
                 self.has_callable_value_fn() else self.get_value_fn
-            content = content.replace(self.full_tag, replacement_value)
+            content = content.replace(full_tag, replacement_value)
         return content
 
     def has_callable_value_fn(self):
@@ -50,7 +54,6 @@ class Tag:
             return self.custom_number_format_fn(value)
         return value
 
-    @property
     def full_tag(self, special=None):
         if special:
             if special not in (settings.header_tag, settings.data_tag):

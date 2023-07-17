@@ -1,23 +1,29 @@
 from ieasyreports.core.tags.tag import Tag
 from ieasyreports.core.tags.tags import date_tag
 
-from ieasyreports.utils import import_from_string
-from ieasyreports.settings import Settings
 from ieasyreports.core.tags.data_manager import DischargeDataManager
 
-settings = Settings()
+title_tag = Tag(
+    "TITLE",
+    "Test report title",
+    "Report title"
+)
 
-from .dummy_sites import SITES
+author_tag = Tag(
+    "AUTHOR",
+    "John Doe",
+    "Report author"
+)
 
 region_tag = Tag(
     "SITE_REGION",
-    lambda site: site.region,
+    lambda site: site.site_region,
     "Site region"
 )
 
 basin_tag = Tag(
     "SITE_BASIN",
-    lambda site: site.basin,
+    lambda site: site.site_basin,
     "Site river basin"
 )
 
@@ -33,13 +39,13 @@ site_code_tag = Tag(
 )
 
 discharge_morning_tag = Tag(
-    "DISHCARGE_MORNING",
+    "DISCHARGE_MORNING",
     DischargeDataManager.get_station_measurement_data,
     "Morning measurement value for the discharge",
 )
 
 discharge_evening_tag = Tag(
-    "DISHCARGE_EVENING",
+    "DISCHARGE_EVENING",
     DischargeDataManager.get_station_measurement_data,
     "Evening measurement value for the discharge",
 )
@@ -56,4 +62,7 @@ water_level_evening_tag = Tag(
     "Evening measurement value for the water level",
 )
 
-
+tags = [
+    basin_tag, site_name_tag, discharge_morning_tag, discharge_evening_tag,
+    water_level_morning_tag, water_level_evening_tag, date_tag, title_tag, author_tag
+]

@@ -3,10 +3,13 @@ class Site:
         self.id = site_id
         self.name = name
         self.site_code = site_code,
-        self.region = region
-        self.basin = basin
+        self.site_region = region
+        self.site_basin = basin
 
     def __str__(self):
+        return self.name
+
+    def __repr__(self):
         return self.name
 
 

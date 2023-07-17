@@ -5,6 +5,7 @@ import click
 from ieasyreports.core.tags import Tag
 from ieasyreports.utils import import_from_string
 from ieasyreports.settings import Settings
+from ieasyreports.examples.example import tags
 
 from ieasyreports.core.tags.tags import title_tag, author_tag, date_tag
 
@@ -16,7 +17,7 @@ settings = Settings()
 def parse_template(template_file):
     try:
         report_generator = import_from_string(settings.template_generator_class)(
-            tags=[date_tag, title_tag, author_tag],
+            tags=tags,
             template=template_file
         )
         report_generator.validate()
