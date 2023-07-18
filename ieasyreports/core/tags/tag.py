@@ -38,7 +38,7 @@ class Tag:
         else:
             full_tag = self.full_tag()
         if full_tag in content:
-            replacement_value = self.get_value_fn(**kwargs) if \
+            replacement_value = str(self.get_value_fn(**kwargs)) if \
                 self.has_callable_value_fn() else self.get_value_fn
             content = content.replace(full_tag, replacement_value)
         return content

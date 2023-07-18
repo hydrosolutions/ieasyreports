@@ -24,12 +24,8 @@ class DefaultReportGenerator:
 
         self.validated = False
 
-        self.header_tag = None
-        self.header_cell = None
-
-        self.data_cells = []
-        self.data_tags = set()
-
+        self.header_tag_info = {}
+        self.data_tags_info = []
         self.general_tags = {}
 
     def _get_template_full_path(self) -> str:
@@ -49,15 +45,14 @@ class DefaultReportGenerator:
         tag_object = self.tags[tag["tag"]]
 
         if tag["tag_type"] == settings.header_tag:
-            if not self.header_tag:
-                self.header_tag = tag_object
-                self.header_cell = cell
+            if not self.header_tag_info:
+                self.header_tag_info["tag"] = tag_object
+                self.header_tag_info["cell"] = cell
             else:
                 raise MultipleHeaderTagsException("Multiple header tags found.")
 
         elif tag["tag_type"] == settings.data_tag:
-            self.data_tags.add(tag_object)
-            self.data_cells.append(cell)
+            self.data_tags_info.append({"tag": tag_object, "cell": cell})
 
         else:
             if tag_object not in self.general_tags:
@@ -93,11 +88,11 @@ class DefaultReportGenerator:
                 self._categorize_tag_by_type(tag_info, cell)
 
     def _validate_header_tag(self):
-        if not self.header_tag:
+        if not self.header_tag_info:
             raise MissingHeaderTagException("Header tag is missing in the template.")
 
     def _validate_data_tags(self):
-        if not self.data_tags:
+        if not self.data_tags_info:
             raise MissingDataTagException("At least one data tag must be present in a template.L")
 
     def _check_tags(self):
@@ -128,20 +123,45 @@ class DefaultReportGenerator:
 
         grouped_sites = {}
         for site in sites:
-            header_value = self.header_tag.replace(
-                self.header_cell.value,
+            header_value = self.header_tag_info["tag"].replace(
+                self.header_tag_info["cell"].value,
                 site=site,
                 special="HEADER"
             )
-            print(self.header_tag)
-            print(header_value)
 
             if header_value not in grouped_sites:
                 grouped_sites[header_value] = []
-            grouped_sites[header_value] = site
+            grouped_sites[header_value].append(site)
 
-        # insert empty columns
-        print(grouped_sites)
+        original_header_row = self.header_tag_info["cell"].row
+        original_data_row = self.data_tags_info[0]["cell"].row
 
+        header_style = self.header_tag_info["cell"].font.copy()
+        data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
+
+        headers_values = [cell.value for cell in self.sheet[original_data_row]]
+
+        self.sheet.delete_rows(original_header_row, 2)
+
+        for header_value, site_group in sorted(grouped_sites.items()):
+            # write the header value
+            self.sheet.insert_rows(original_header_row)
+            cell = self.sheet.cell(row=original_header_row, column=self.header_tag_info["cell"].column, value=header_value)
+            cell.font = header_style
+
+            self.sheet.insert_rows(original_header_row + 1)
+            for idx, value in enumerate(headers_values, start=1):
+                self.sheet.cell(row=original_header_row + 1, column=idx, value=value)
+
+            for site in site_group:
+                self.sheet.insert_rows(original_header_row + 1)
+                for idx, data_tag in enumerate(self.data_tags_info):
+                    tag = data_tag["tag"]
+                    data = tag.replace(data_tag["cell"].value, site=site, special=settings.data_tag)
+                    cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column, value=data)
+                    cell.font = data_styles[idx]
+
+            original_header_row += len(site_group) + 2
+            original_data_row += len(site_group) + 2
 
         self.save_report("basic_report.xlsx")

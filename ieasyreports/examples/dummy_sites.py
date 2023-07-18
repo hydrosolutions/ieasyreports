@@ -2,7 +2,7 @@ class Site:
     def __init__(self, site_id: int, name: str, site_code: str, region: str, basin: str):
         self.id = site_id
         self.name = name
-        self.site_code = site_code,
+        self.site_code = site_code
         self.site_region = region
         self.site_basin = basin
 
@@ -22,5 +22,5 @@ SITES = [
     Site(6, "Vukovar Luka", "32000", "Vukovarsko-srijemska", "Dunav"),
     Site(7, "Borovo", "32227", "Vukovarsko-srijemska", "Dunav"),
     Site(8, "Donji Miholjac", "31540", "Osjecko-baranjska", "Drava"),
-    Site(9, "Rugvica", "10372", "Zagrebacka", "Savas")
+    Site(9, "Rugvica", "10372", "Zagrebacka", "Sava")
 ]

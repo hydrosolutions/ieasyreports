@@ -4,6 +4,7 @@ from datetime import datetime
 from babel.dates import format_date
 
 from ieasyreports.examples.dummy_data import DUMMY_MEASUREMENTS
+from ieasyreports.examples.dummy_sites import Site
 
 
 class DefaultDataManager:
@@ -17,12 +18,15 @@ class DefaultDataManager:
 
 class DischargeDataManager(DefaultDataManager):
     @classmethod
-    def get_station_measurement_data(cls, station_id, time_of_day="morning", measurement="water_discharge"):
-        station_measurements = DUMMY_MEASUREMENTS.get(station_id)
-        if station_measurements is None:
-            return ""
+    def get_station_measurement_data(
+        cls, site: Site, time_of_day: str = "morning", measurement: str = "water_discharge"
+    ):
+        for station_measurement in DUMMY_MEASUREMENTS.values():
+            if station_measurement.get("station_code") == site.site_code:
+                try:
+                    print(station_measurement)
+                    return station_measurement["measurements"][f"{measurement}_{time_of_day}"]
+                except KeyError:
+                    return ""
 
-        try:
-            return station_measurements["measurements"][f"{measurement}{time_of_day}"]
-        except KeyError:
-            return ""
+        return ""
