@@ -24,7 +24,6 @@ class DischargeDataManager(DefaultDataManager):
         for station_measurement in DUMMY_MEASUREMENTS.values():
             if station_measurement.get("station_code") == site.site_code:
                 try:
-                    print(station_measurement)
                     return station_measurement["measurements"][f"{measurement}_{time_of_day}"]
                 except KeyError:
                     return ""
