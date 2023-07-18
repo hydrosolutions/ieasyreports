@@ -120,7 +120,7 @@ class DefaultReportGenerator:
         for tag, cells in self.general_tags.items():
             for cell in cells:
                 cell.value = tag.replace(cell.value)
-        print("tu sam")
+
         grouped_sites = {}
         for site in sites:
             header_value = self.header_tag_info["tag"].replace(
@@ -134,11 +134,11 @@ class DefaultReportGenerator:
             grouped_sites[header_value].append(site)
 
         original_header_row = self.header_tag_info["cell"].row
-        original_data_row = self.data_tags_info[0]["cell"].row
 
         header_style = self.header_tag_info["cell"].font.copy()
         data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
 
+        headers_values = [cell.value for cell in self.sheet[original_header_row + 1]]
         self.sheet.delete_rows(original_header_row, 3)
 
         for header_value, site_group in sorted(grouped_sites.items()):
@@ -147,15 +147,18 @@ class DefaultReportGenerator:
             cell = self.sheet.cell(row=original_header_row, column=self.header_tag_info["cell"].column, value=header_value)
             cell.font = header_style
 
+            self.sheet.insert_rows(original_header_row + 1)
+            for idx, value in enumerate(headers_values, start=1):
+                self.sheet.cell(row=original_header_row + 1, column=idx, value=value)
+
             for site in site_group:
-                self.sheet.insert_rows(original_header_row + 1)
+                self.sheet.insert_rows(original_header_row + 2)
                 for idx, data_tag in enumerate(self.data_tags_info):
                     tag = data_tag["tag"]
                     data = tag.replace(data_tag["cell"].value, site=site, special=settings.data_tag)
-                    cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column, value=data)
+                    cell = self.sheet.cell(row=original_header_row + 2, column=data_tag["cell"].column, value=data)
                     cell.font = data_styles[idx]
 
             original_header_row += len(site_group) + 2
-            original_data_row += len(site_group) + 2
 
         self.save_report("basic_report.xlsx")

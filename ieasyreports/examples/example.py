@@ -40,25 +40,25 @@ site_code_tag = Tag(
 
 discharge_morning_tag = Tag(
     "DISCHARGE_MORNING",
-    DischargeDataManager.get_station_measurement_data,
+    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="morning", measurement="water_discharge"),
     "Morning measurement value for the discharge",
 )
 
 discharge_evening_tag = Tag(
     "DISCHARGE_EVENING",
-    DischargeDataManager.get_station_measurement_data,
+    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="evening", measurement="water_discharge"),
     "Evening measurement value for the discharge",
 )
 
 water_level_morning_tag = Tag(
     "WATER_LEVEL_MORNING",
-    DischargeDataManager.get_station_measurement_data,
+    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="morning", measurement="water_level"),
     "Morning measurement value for the water level",
 )
 
 water_level_evening_tag = Tag(
     "WATER_LEVEL_EVENING",
-    DischargeDataManager.get_station_measurement_data,
+    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="evening", measurement="water_level"),
     "Evening measurement value for the water level",
 )
 
