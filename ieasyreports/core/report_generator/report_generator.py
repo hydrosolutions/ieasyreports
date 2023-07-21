@@ -1,22 +1,19 @@
 import re
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import openpyxl
 import os
 
 from ieasyreports.core.tags.tag import Tag
 from ieasyreports.settings import Settings
 from ieasyreports.exceptions import (
-    InvalidTagException, TemplateNotValidatedException, MultipleHeaderTagsException, MissingHeaderTagException,
-    MissingDataTagException
+    InvalidTagException, TemplateNotValidatedException, MultipleHeaderTagsException, MissingHeaderTagException
 )
-
-from ieasyreports.examples.dummy_sites import Site, SITES
 
 settings = Settings()
 
 
 class DefaultReportGenerator:
-    def __init__(self, tags: List[Tag], template: str):
+    def __init__(self, tags: List[Tag], template: str, requires_header: bool = False):
         self.tags = {tag.name: tag for tag in tags}
         self.template_filename = template
         self.template = self.open_template_file()
@@ -24,6 +21,7 @@ class DefaultReportGenerator:
 
         self.validated = False
 
+        self.requires_header_tag = requires_header
         self.header_tag_info = {}
         self.data_tags_info = []
         self.general_tags = {}
@@ -88,12 +86,11 @@ class DefaultReportGenerator:
                 self._categorize_tag_by_type(tag_info, cell)
 
     def _validate_header_tag(self):
-        if not self.header_tag_info:
+        if self.requires_header_tag and not self.header_tag_info:
             raise MissingHeaderTagException("Header tag is missing in the template.")
 
     def _validate_data_tags(self):
-        if not self.data_tags_info:
-            raise MissingDataTagException("At least one data tag must be present in a template.L")
+        pass
 
     def _check_tags(self):
         for tag in self.tags.values():
@@ -109,10 +106,20 @@ class DefaultReportGenerator:
         self._validate_data_tags()
         self.validated = True
 
-    def save_report(self, name: str):
-        self.template.save(os.path.join(settings.report_output_path, name))
+    def save_report(self, name: str, output_path: str):
+        if output_path is None:
+            output_path = settings.report_output_path
+        os.makedirs(output_path, exist_ok=True)
 
-    def generate_report(self, sites: List[Site] = SITES):
+        if name is None:
+            name = f"{self.template_filename.split('.xlsx')[0]}.xlsx"
+
+        self.template.save(os.path.join(output_path, name))
+
+    def generate_report(
+        self, sites: Optional[List[Any]] = None,
+        output_path: Optional[str] = None, output_filename: Optional[str] = None
+    ):
         if not self.validated:
             raise TemplateNotValidatedException(
                 "Template must be validated first. Did you forget to call the `.validate()` method?"
@@ -121,44 +128,47 @@ class DefaultReportGenerator:
             for cell in cells:
                 cell.value = tag.replace(cell.value)
 
-        grouped_sites = {}
-        for site in sites:
-            header_value = self.header_tag_info["tag"].replace(
-                self.header_tag_info["cell"].value,
-                site=site,
-                special="HEADER"
-            )
+        if self.header_tag_info:
 
-            if header_value not in grouped_sites:
-                grouped_sites[header_value] = []
-            grouped_sites[header_value].append(site)
+            grouped_sites = {}
+            sites = sites if sites else []
+            for site in sites:
+                header_value = self.header_tag_info["tag"].replace(
+                    self.header_tag_info["cell"].value,
+                    site=site,
+                    special="HEADER"
+                )
 
-        original_header_row = self.header_tag_info["cell"].row
+                if header_value not in grouped_sites:
+                    grouped_sites[header_value] = []
+                grouped_sites[header_value].append(site)
 
-        header_style = self.header_tag_info["cell"].font.copy()
-        data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
+            original_header_row = self.header_tag_info["cell"].row
 
-        headers_values = [cell.value for cell in self.sheet[original_header_row + 1]]
-        self.sheet.delete_rows(original_header_row, 3)
+            header_style = self.header_tag_info["cell"].font.copy()
+            data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
 
-        for header_value, site_group in sorted(grouped_sites.items()):
-            # write the header value
-            self.sheet.insert_rows(original_header_row)
-            cell = self.sheet.cell(row=original_header_row, column=self.header_tag_info["cell"].column, value=header_value)
-            cell.font = header_style
+            headers_values = [cell.value for cell in self.sheet[original_header_row + 1]]
+            self.sheet.delete_rows(original_header_row, 3)
 
-            self.sheet.insert_rows(original_header_row + 1)
-            for idx, value in enumerate(headers_values, start=1):
-                self.sheet.cell(row=original_header_row + 1, column=idx, value=value)
+            for header_value, site_group in sorted(grouped_sites.items()):
+                # write the header value
+                self.sheet.insert_rows(original_header_row)
+                cell = self.sheet.cell(row=original_header_row, column=self.header_tag_info["cell"].column, value=header_value)
+                cell.font = header_style
 
-            for site in site_group:
-                self.sheet.insert_rows(original_header_row + 2)
-                for idx, data_tag in enumerate(self.data_tags_info):
-                    tag = data_tag["tag"]
-                    data = tag.replace(data_tag["cell"].value, site=site, special=settings.data_tag)
-                    cell = self.sheet.cell(row=original_header_row + 2, column=data_tag["cell"].column, value=data)
-                    cell.font = data_styles[idx]
+                self.sheet.insert_rows(original_header_row + 1)
+                for idx, value in enumerate(headers_values, start=1):
+                    self.sheet.cell(row=original_header_row + 1, column=idx, value=value)
 
-            original_header_row += len(site_group) + 2
+                for site in site_group:
+                    self.sheet.insert_rows(original_header_row + 2)
+                    for idx, data_tag in enumerate(self.data_tags_info):
+                        tag = data_tag["tag"]
+                        data = tag.replace(data_tag["cell"].value, site=site, special=settings.data_tag)
+                        cell = self.sheet.cell(row=original_header_row + 2, column=data_tag["cell"].column, value=data)
+                        cell.font = data_styles[idx]
 
-        self.save_report("basic_report.xlsx")
+                original_header_row += len(site_group) + 2
+
+        self.save_report(output_filename, output_path)

@@ -1,7 +1,7 @@
 from ieasyreports.core.tags.tag import Tag
 from ieasyreports.core.tags.tags import date_tag
 
-from ieasyreports.core.tags.data_manager import DischargeDataManager
+from ieasyreports.core.tags.data_manager import DummyMeasurementDataManager
 
 title_tag = Tag(
     "TITLE",
@@ -40,25 +40,25 @@ site_code_tag = Tag(
 
 discharge_morning_tag = Tag(
     "DISCHARGE_MORNING",
-    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="morning", measurement="water_discharge"),
+    lambda site: DummyMeasurementDataManager.get_station_measurement_data(site, time_of_day="morning", measurement="water_discharge"),
     "Morning measurement value for the discharge",
 )
 
 discharge_evening_tag = Tag(
     "DISCHARGE_EVENING",
-    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="evening", measurement="water_discharge"),
+    lambda site: DummyMeasurementDataManager.get_station_measurement_data(site, time_of_day="evening", measurement="water_discharge"),
     "Evening measurement value for the discharge",
 )
 
 water_level_morning_tag = Tag(
     "WATER_LEVEL_MORNING",
-    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="morning", measurement="water_level"),
+    lambda site: DummyMeasurementDataManager.get_station_measurement_data(site, time_of_day="morning", measurement="water_level"),
     "Morning measurement value for the water level",
 )
 
 water_level_evening_tag = Tag(
     "WATER_LEVEL_EVENING",
-    lambda site: DischargeDataManager.get_station_measurement_data(site, time_of_day="evening", measurement="water_level"),
+    lambda site: DummyMeasurementDataManager.get_station_measurement_data(site, time_of_day="evening", measurement="water_level"),
     "Evening measurement value for the water level",
 )
 

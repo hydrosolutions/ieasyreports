@@ -12,15 +12,13 @@ class Tag:
         name: str,
         get_value_fn: Union[Callable, str],
         description: Optional[str] = None,
-        types: Optional[list[str]] = None,
-        date_offset: Optional[Dict[str, int]] = None,
+        value_fn_args: Optional[Dict[Any, Any]] = None,
         custom_number_format_fn: Optional[Callable] = None
     ):
         self.name = name
         self.get_value_fn = get_value_fn
+        self.value_fn_args = value_fn_args if value_fn_args else {}
         self.description = description
-        self.types = types
-        self.date_offset = date_offset
         self.custom_number_format_fn = custom_number_format_fn
 
     def __repr__(self):
@@ -38,7 +36,7 @@ class Tag:
         else:
             full_tag = self.full_tag()
         if full_tag in content:
-            replacement_value = str(self.get_value_fn(**kwargs)) if \
+            replacement_value = str(self.get_value_fn(**kwargs, **self.value_fn_args)) if \
                 self.has_callable_value_fn() else self.get_value_fn
             content = content.replace(full_tag, replacement_value)
         return content

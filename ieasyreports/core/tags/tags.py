@@ -12,15 +12,3 @@ date_tag = Tag(
     DataManager.get_localized_date,
     'Today\'s localized string.'
 )
-
-title_tag = Tag(
-    'TITLE',
-    'Report title',
-    'Title of the report'
-)
-
-author_tag = Tag(
-    'AUTHOR',
-    'Author Name',
-    'Name of the report author'
-)

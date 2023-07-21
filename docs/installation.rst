@@ -12,7 +12,8 @@ To install iEasyReports, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install ieasyreports
+    $ pip install git+https://github.com/hydrosolutions/ieasyreports.git@main
+
 
 This is the preferred method to install iEasyReports, as it will always install the most recent stable release.
 
@@ -32,13 +33,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/skalecdavor/ieasyreports
+    $ git clone git://github.com/hydrosolutions/ieasyreports
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl -OJL https://github.com/skalecdavor/ieasyreports/tarball/master
+    $ curl -OJL https://github.com/hydrosolutions/ieasyreports/tarball/main
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +48,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/skalecdavor/ieasyreports
-.. _tarball: https://github.com/skalecdavor/ieasyreports/tarball/master
+.. _Github repo: https://github.com/hydrosolutions/ieasyreports
+.. _tarball: https://github.com/hydrosolutions/ieasyreports/tarball/main

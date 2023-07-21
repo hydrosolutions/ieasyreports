@@ -14,23 +14,21 @@ iEasyReports
         :alt: Documentation Status
 
 
-.. image:: https://pyup.io/repos/github/skalecdavor/ieasyreports/shield.svg
-     :target: https://pyup.io/repos/github/skalecdavor/ieasyreports/
-     :alt: Updates
-
-
-
-Reports template system for generating reports from templates.
-
+iEasyReports is a Python library that enables developers to generate
+reports easily using flexible templates and data.
+It works by replacing placeholders in a template with actual data based
+on user-defined logic.
 
 * Free software: MIT license
-* Documentation: https://ieasyreports.readthedocs.io.
 
 
 Features
 --------
 
-* TODO
+* report generation from templates
+* grouping data based on a header tag in the template
+* enable custom functions for replacing template tags with actual data
+* customizable template generator - easily override with your own class
 
 Credits
 -------

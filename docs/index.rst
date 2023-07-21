@@ -9,7 +9,6 @@ Welcome to iEasyReports's documentation!
    installation
    usage
    modules
-   contributing
    authors
    history
 

@@ -27,11 +27,6 @@ setup(
         'Programming Language :: Python :: 3.11',
     ],
     description="Reports template system for generating reports from templates.",
-    entry_points={
-        'console_scripts': [
-            'ieasyreports=ieasyreports.cli:cli',
-        ],
-    },
     install_requires=requirements,
     license="MIT license",
     long_description=readme + '\n\n' + history,
