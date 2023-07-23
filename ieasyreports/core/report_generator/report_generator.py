@@ -117,7 +117,7 @@ class DefaultReportGenerator:
         self.template.save(os.path.join(output_path, name))
 
     def generate_report(
-        self, sites: Optional[List[Any]] = None,
+        self, list_objects: Optional[List[Any]] = None,
         output_path: Optional[str] = None, output_filename: Optional[str] = None
     ):
         if not self.validated:
@@ -129,46 +129,39 @@ class DefaultReportGenerator:
                 cell.value = tag.replace(cell.value)
 
         if self.header_tag_info:
-
-            grouped_sites = {}
-            sites = sites if sites else []
-            for site in sites:
+            grouped_data = {}
+            list_objects = list_objects if list_objects else []
+            for list_obj in list_objects:
                 header_value = self.header_tag_info["tag"].replace(
                     self.header_tag_info["cell"].value,
-                    site=site,
-                    special="HEADER"
+                    special="HEADER",
+                    obj=list_obj
                 )
 
-                if header_value not in grouped_sites:
-                    grouped_sites[header_value] = []
-                grouped_sites[header_value].append(site)
+                if header_value not in grouped_data:
+                    grouped_data[header_value] = []
+                grouped_data[header_value].append(list_obj)
 
             original_header_row = self.header_tag_info["cell"].row
-
             header_style = self.header_tag_info["cell"].font.copy()
             data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
 
-            headers_values = [cell.value for cell in self.sheet[original_header_row + 1]]
-            self.sheet.delete_rows(original_header_row, 3)
+            self.sheet.delete_rows(original_header_row, 2)
 
-            for header_value, site_group in sorted(grouped_sites.items()):
+            for header_value, item_group in sorted(grouped_data.items()):
                 # write the header value
                 self.sheet.insert_rows(original_header_row)
                 cell = self.sheet.cell(row=original_header_row, column=self.header_tag_info["cell"].column, value=header_value)
                 cell.font = header_style
 
-                self.sheet.insert_rows(original_header_row + 1)
-                for idx, value in enumerate(headers_values, start=1):
-                    self.sheet.cell(row=original_header_row + 1, column=idx, value=value)
-
-                for site in site_group:
-                    self.sheet.insert_rows(original_header_row + 2)
+                for item in item_group:
+                    self.sheet.insert_rows(original_header_row + 1)
                     for idx, data_tag in enumerate(self.data_tags_info):
                         tag = data_tag["tag"]
-                        data = tag.replace(data_tag["cell"].value, site=site, special=settings.data_tag)
-                        cell = self.sheet.cell(row=original_header_row + 2, column=data_tag["cell"].column, value=data)
+                        data = tag.replace(data_tag["cell"].value, obj=item, special=settings.data_tag)
+                        cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column, value=data)
                         cell.font = data_styles[idx]
 
-                original_header_row += len(site_group) + 2
+                original_header_row += len(item_group) + 1
 
         self.save_report(output_filename, output_path)

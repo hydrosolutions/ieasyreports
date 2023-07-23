@@ -31,9 +31,8 @@ Here are all the parameters that a Tag object accepts during instantiation::
     description (optional): A description of the tag.
     custom_number_format_fn (optional): A custom function to format the tag's value.
 
-
 DataManager Classes
-___________________
+-------------------
 
 DataManager classes encapsulate the logic required to access and format the data.
 The DefaultDataManager class provides a basic example of a DataManager,
@@ -46,10 +45,12 @@ providing a method to format a date::
 
 
 Examples
-________
+--------
 
 .. include:: example1.rst
 
 .. include:: example2.rst
 
 .. include:: example3.rst
+
+.. include:: example4.rst
