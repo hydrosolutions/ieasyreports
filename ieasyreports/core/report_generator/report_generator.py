@@ -127,7 +127,6 @@ class DefaultReportGenerator:
         self, list_objects: Optional[List[Any]] = None,
         output_path: Optional[str] = None, output_filename: Optional[str] = None
     ):
-        print(settings)
         if not self.validated:
             raise TemplateNotValidatedException(
                 "Template must be validated first. Did you forget to call the `.validate()` method?"
