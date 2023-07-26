@@ -5,6 +5,12 @@ class TemplateNotValidatedException(Exception):
     """
 
 
+class TemplateNotFoundException(Exception):
+    """
+    Raised when the specified template cannot be found.
+    """
+
+
 class InvalidTagException(Exception):
     """
     Raised whenever an invalid tag is provided to the report generator.

@@ -6,7 +6,8 @@ import os
 from ieasyreports.core.tags.tag import Tag
 from ieasyreports.settings import Settings
 from ieasyreports.exceptions import (
-    InvalidTagException, TemplateNotValidatedException, MultipleHeaderTagsException, MissingHeaderTagException
+    InvalidTagException, TemplateNotValidatedException, MultipleHeaderTagsException, MissingHeaderTagException,
+    TemplateNotFoundException
 )
 
 settings = Settings()
@@ -31,7 +32,12 @@ class DefaultReportGenerator:
 
     def open_template_file(self) -> openpyxl.Workbook:
         template_path = self._get_template_full_path()
-        workbook = openpyxl.load_workbook(template_path)
+        try:
+            workbook = openpyxl.load_workbook(template_path)
+        except FileNotFoundError as e:
+            raise TemplateNotFoundException(
+                f"Cannot find {self.template_filename} in the {settings.templates_directory_path} folder."
+            )
         return workbook
 
     def iter_cells(self):
@@ -69,7 +75,8 @@ class DefaultReportGenerator:
     @staticmethod
     def _parse_template_tag(template_tag: str) -> list:
         try:
-            return re.findall(settings.tag_regex, template_tag)
+            tag_regex = rf"{settings.tag_start_symbol}(.*?){settings.tag_end_symbol}"
+            return re.findall(tag_regex, template_tag)
         except TypeError:
             return []
 
@@ -120,6 +127,7 @@ class DefaultReportGenerator:
         self, list_objects: Optional[List[Any]] = None,
         output_path: Optional[str] = None, output_filename: Optional[str] = None
     ):
+        print(settings)
         if not self.validated:
             raise TemplateNotValidatedException(
                 "Template must be validated first. Did you forget to call the `.validate()` method?"
