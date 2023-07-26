@@ -21,5 +21,5 @@ class Settings(BaseSettings):
     tag_regex: str = rf"{tag_start_symbol}(.*?){tag_end_symbol}"
 
     class Config:
-        env_prefix = 'ieasyhydro'
+        env_prefix = 'ieasyreports'
         env_file = '.env'

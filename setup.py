@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['Babel==2.12.1', 'Click>=7.0', 'openpyxl==3.1.2', 'pydantic==1.10.9']
+requirements = ['Babel==2.12.1', 'Click>=7.0', 'openpyxl==3.1.2', 'pydantic[dotenv]==1.10.9']
 
 test_requirements = ['pytest>=3', ]
 
