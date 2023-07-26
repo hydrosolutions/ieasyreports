@@ -8,6 +8,7 @@ Welcome to iEasyReports's documentation!
    readme
    installation
    usage
+   customization
    modules
    authors
    history
