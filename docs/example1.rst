@@ -8,6 +8,14 @@ Let's say this template is called `example1.xlsx`.
 | {{TITLE}} | {{AUTHOR}} | {{DATE}} |
 +-----------+------------+----------+
 
+Also, to spice things up, the author tag will have the `custom_number_format_fn` argument in order
+to demonstrate how it works. What the argument does is call the passed in callback function and
+call it with the value returned by the replacement function which means that first the replacement function
+will be called, then the custom number format function will be called to further transform the value which
+will then be added in the output report. Notice that even though the `author_uppercase` function receives
+an argument, you only pass in the reference to the function to the `custom_number_format_fn` and the library
+will make sure to call the function with the value passed in.
+
 To parse this template and replace the tags with actual values, you could do
 something like this::
     from ieasyreports.core.tags.tag import Tag
@@ -15,11 +23,14 @@ something like this::
 
     from ieasyreports.settings import Settings
 
+    def author_uppercase(author):
+        return author.upper()
+
     settings = Settings()
 
     # Define tags
     title_tag = Tag("TITLE", "Water Discharge Report")
-    author_tag = Tag("AUTHOR", "John Doe")
+    author_tag = Tag("AUTHOR", "John Doe", custom_number_format_fn=author_uppercase)
     date_tag = Tag("DATE", "July 20, 2023")
 
     # create the ReportGenerator instance
@@ -40,5 +51,5 @@ The content of the output report should be the following:
 +------------------------+----------+-------------------+
 |         Title          |  Author  |       Date        |
 +========================+==========+===================+
-| Water Discharge Report | John Doe | January 1st, 2023 |
+| Water Discharge Report | JOHN DOE | January 1st, 2023 |
 +------------------------+----------+-------------------+

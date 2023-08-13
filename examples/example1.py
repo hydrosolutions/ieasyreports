@@ -1,13 +1,20 @@
+import datetime as dt
+
 from ieasyreports.core.tags.tag import Tag
 from ieasyreports.utils import import_from_string
 
 from ieasyreports.settings import Settings
 
+
+def author_uppercase(author: str):
+    return author.upper()
+
+
 settings = Settings()
 
 # Define tags
 title_tag = Tag("TITLE", "Water Discharge Report")
-author_tag = Tag("AUTHOR", "John Doe")
+author_tag = Tag("AUTHOR", "John Doe", custom_number_format_fn=author_uppercase)
 date_tag = Tag("DATE", "January 1st, 2023")
 
 # create the ReportGenerator instance
