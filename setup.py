@@ -17,13 +17,14 @@ test_requirements = ['pytest>=3', ]
 setup(
     author="Davor Škalec",
     author_email='davor.skalec@encode.hr',
-    python_requires='>=3.11',
+    python_requires='>=3.10',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],
     description="Reports template system for generating reports from templates.",
