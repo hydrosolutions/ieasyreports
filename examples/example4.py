@@ -1,14 +1,9 @@
 import random
 
-from ieasyreports.core.tags.tag import Tag
-from ieasyreports.utils import import_from_string
+from ieasyreports.core.report_generator import DefaultReportGenerator
+from ieasyreports.core.tags import DefaultDataManager, Tag
 import datetime as dt
 import random as rd
-
-from ieasyreports.settings import Settings
-
-settings = Settings()
-DataManager = import_from_string(settings.data_manager_class)
 
 
 class River:
@@ -94,13 +89,13 @@ author_tag = Tag(
 )
 date_tag = Tag(
     "DATE",
-    DataManager.get_localized_date,
+    DefaultDataManager.get_localized_date,
     "Date when the report was generated"
 )
 
 
 # create the ReportGenerator instance
-report_generator = import_from_string(settings.template_generator_class)(
+report_generator = DefaultReportGenerator(
     tags=[region_tag, river_tag, measurement_day_tag, water_level_tag, water_discharge_tag, author_tag, date_tag],
     template='example2.xlsx',
     requires_header=True

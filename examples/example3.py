@@ -1,11 +1,6 @@
-from ieasyreports.core.tags.tag import Tag
-from ieasyreports.utils import import_from_string
+from ieasyreports.core.report_generator import DefaultReportGenerator
+from ieasyreports.core.tags import DefaultDataManager, Tag
 import datetime as dt
-
-from ieasyreports.settings import Settings
-
-settings = Settings()
-DataManager = import_from_string(settings.data_manager_class)
 
 
 class Author:
@@ -32,12 +27,12 @@ author_tag = Tag(
 )
 date_tag = Tag(
     "DATE",
-    DataManager.get_localized_date,
+    DefaultDataManager.get_localized_date,
     value_fn_args={"date": dt.datetime(2023, 1, 1, 12, 0), "date_format": "medium", "language": "hr_HR"}
 )
 
 # create the ReportGenerator instance
-report_generator = import_from_string(settings.template_generator_class)(
+report_generator = DefaultReportGenerator(
     tags=[title_tag, author_tag, date_tag],
     template='example1.xlsx'
 )
