@@ -39,3 +39,9 @@ class InvalidSpecialParameterException(Exception):
     """
     Raised when an invalid value for a special tag is used.
     """
+
+
+class InvalidSettingsException(Exception):
+    """
+    Raised when an invalid type is passed for the custom settings argument to the report generator class.
+    """

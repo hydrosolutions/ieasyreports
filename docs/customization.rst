@@ -131,3 +131,34 @@ the settings values which is this:
 * variable loaded from .env file
 * default values defined in the Settings class
 
+
+Example
+______________
+
+To provide your own values for the supported settings, you can pass the name of your
+.env file to the `Settings` constructor, like this::
+    from ieasyreports.core.report_generator import DefaultReportGenerator
+    from ieasyreports.settings import Settings
+
+    settings = Settings(_env_file=".env_custom")
+
+    report_generator = DefaultReportGenerator(
+        tags=[tag1, tag2],
+        template='example1.xlsx',
+        custom_settings=settings
+    )
+
+An alternative would be to create your own instance of the Settings class::
+
+    from ieasyreports.core.report_generator import DefaultReportGenerator
+    from ieasyreports.settings import Settings
+
+    class MySettingsViaClass(Settings):
+        report_output_path: str = 'custom/output/path'
+
+    report_generator = DefaultReportGenerator(
+        tags=[tag1, tag2],
+        template='example1.xlsx',
+        custom_settings=MySettingsClass()
+    )
+
