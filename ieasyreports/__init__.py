@@ -2,4 +2,4 @@
 
 __author__ = """Davor Škalec"""
 __email__ = 'davor.skalec@encode.hr'
-__version__ = '0.1.1'
+__version__ = '0.1.2'
