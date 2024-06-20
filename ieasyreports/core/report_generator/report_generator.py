@@ -4,23 +4,29 @@ import openpyxl
 import os
 
 from ieasyreports.core.tags.tag import Tag
-from ieasyreports.settings import Settings
+from ieasyreports.settings import TagSettings
 from ieasyreports.exceptions import (
     InvalidTagException, TemplateNotValidatedException, MultipleHeaderTagsException, MissingHeaderTagException,
-    TemplateNotFoundException, InvalidSettingsException
+    TemplateNotFoundException,
 )
 
 
 class DefaultReportGenerator:
-    def __init__(self, tags: List[Tag], template: str, requires_header: bool = False, custom_settings: Settings = None):
-        if custom_settings and not isinstance(custom_settings, Settings):
-            raise InvalidSettingsException(
-                f"`custom_settings` must be a {type(Settings)} instance, got {type(custom_settings)} instead."
-            )
-        self.settings = custom_settings or Settings()
+    def __init__(
+        self,
+        tags: List[Tag],
+        template: str,
+        templates_directory_path: str,
+        reports_directory_path: str,
+        tag_settings: TagSettings,
+        requires_header: bool = False
+    ):
         self.tags = {tag.name: tag for tag in tags}
         self.template_filename = template
+        self.templates_directory_path = templates_directory_path
+        self.reports_directory_path = reports_directory_path
         self.template = self.open_template_file()
+        self.tag_settings = tag_settings
         self.sheet = self.template.worksheets[0]
 
         self.validated = False
@@ -31,7 +37,7 @@ class DefaultReportGenerator:
         self.general_tags = {}
 
     def _get_template_full_path(self) -> str:
-        return os.path.join(self.settings.templates_directory_path, self.template_filename)
+        return os.path.join(self.templates_directory_path, self.template_filename)
 
     def open_template_file(self) -> openpyxl.Workbook:
         template_path = self._get_template_full_path()
@@ -39,7 +45,7 @@ class DefaultReportGenerator:
             workbook = openpyxl.load_workbook(template_path)
         except FileNotFoundError as e:
             raise TemplateNotFoundException(
-                f"Cannot find {self.template_filename} in the {self.settings.templates_directory_path} folder."
+                f"Cannot find {self.template_filename} in the {self.templates_directory_path} folder."
             )
         return workbook
 
@@ -51,14 +57,14 @@ class DefaultReportGenerator:
     def _categorize_tag_by_type(self, tag, cell):
         tag_object = self.tags[tag["tag"]]
 
-        if tag["tag_type"] == self.settings.header_tag:
+        if tag["tag_type"] == self.tag_settings.header_tag:
             if not self.header_tag_info:
                 self.header_tag_info["tag"] = tag_object
                 self.header_tag_info["cell"] = cell
             else:
                 raise MultipleHeaderTagsException("Multiple header tags found.")
 
-        elif tag["tag_type"] == self.settings.data_tag:
+        elif tag["tag_type"] == self.tag_settings.data_tag:
             self.data_tags_info.append({"tag": tag_object, "cell": cell})
 
         else:
@@ -68,7 +74,7 @@ class DefaultReportGenerator:
             self.general_tags[tag_object].append(cell)
 
     def _decode_template_tag(self, tag: str) -> Dict[str, str]:
-        parts = tag.split(self.settings.split_symbol)
+        parts = tag.split(self.tag_settings.split_symbol)
         return {
             'tag': parts.pop(-1),
             'tag_type': parts.pop(-1) if parts else None
@@ -76,7 +82,7 @@ class DefaultReportGenerator:
 
     def _parse_template_tag(self, template_tag: str) -> list:
         try:
-            tag_regex = rf"{self.settings.tag_start_symbol}(.*?){self.settings.tag_end_symbol}"
+            tag_regex = rf"{self.tag_settings.tag_start_symbol}(.*?){self.tag_settings.tag_end_symbol}"
             return re.findall(tag_regex, template_tag)
         except TypeError:
             return []
@@ -116,7 +122,7 @@ class DefaultReportGenerator:
 
     def save_report(self, name: str, output_path: str):
         if output_path is None:
-            output_path = self.settings.report_output_path
+            output_path = self.reports_directory_path
         os.makedirs(output_path, exist_ok=True)
 
         if name is None:
@@ -166,7 +172,7 @@ class DefaultReportGenerator:
                     self.sheet.insert_rows(original_header_row + 1)
                     for idx, data_tag in enumerate(self.data_tags_info):
                         tag = data_tag["tag"]
-                        data = tag.replace(data_tag["cell"].value, obj=item, special=self.settings.data_tag)
+                        data = tag.replace(data_tag["cell"].value, obj=item, special=self.tag_settings.data_tag)
                         cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column, value=data)
                         cell.font = data_styles[idx]
 

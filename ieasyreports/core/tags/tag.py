@@ -1,9 +1,7 @@
 from typing import Any, Callable, Dict, Optional, Union
 
-from ieasyreports.settings import Settings
+from ieasyreports.settings import TagSettings
 from ieasyreports.exceptions import InvalidSpecialParameterException
-
-settings = Settings()
 
 
 class Tag:
@@ -11,15 +9,15 @@ class Tag:
         self,
         name: str,
         get_value_fn: Union[Callable, str],
-        description: Optional[str] = None,
+        tag_settings: TagSettings,
         value_fn_args: Optional[Dict[Any, Any]] = None,
-        custom_number_format_fn: Optional[Callable] = None
+        custom_number_format_fn: Optional[Callable] = None,
     ):
         self.name = name
         self.get_value_fn = get_value_fn
         self.value_fn_args = value_fn_args if value_fn_args else {}
-        self.description = description
         self.custom_number_format_fn = custom_number_format_fn
+        self.settings = tag_settings
 
     def __repr__(self):
         return self.name
@@ -56,11 +54,11 @@ class Tag:
 
     def full_tag(self, special=None):
         if special:
-            if special not in (settings.header_tag, settings.data_tag):
+            if special not in (self.settings.header_tag, self.settings.data_tag):
                 raise InvalidSpecialParameterException(f'{special} is not a supported value.')
             else:
-                special_extension = f'{special}{settings.split_symbol}'
+                special_extension = f'{special}{self.settings.split_symbol}'
         else:
             special_extension = ''
 
-        return f'{settings.tag_start_symbol}{special_extension}{self.name}{settings.tag_end_symbol}'
+        return f'{self.settings.tag_start_symbol}{special_extension}{self.name}{self.settings.tag_end_symbol}'
