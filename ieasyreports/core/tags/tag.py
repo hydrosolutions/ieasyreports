@@ -28,14 +28,18 @@ class Tag:
     def __hash__(self):
         return hash(self.name)
 
-    def replace(self, content, **kwargs):
-        if "special" in kwargs:
-            full_tag = self.full_tag(special=kwargs.pop("special"))
+    def replace(self, content, context: Optional[dict[str, Any]] = None):
+        context = context or {}
+        context = {**context, **self.value_fn_args}
+        if "special" in context:
+            full_tag = self.full_tag(special=context.pop("special"))
         else:
             full_tag = self.full_tag()
         if full_tag in content:
-            replacement_value = str(self.get_value_fn(**kwargs, **self.value_fn_args)) if \
-                self.has_callable_value_fn() else self.get_value_fn
+            if self.has_callable_value_fn():
+                replacement_value = str(self.get_value_fn(**context))
+            else:
+                replacement_value = self.get_value_fn
             if self.has_custom_format():
                 replacement_value = self.custom_number_format_fn(replacement_value)
             content = content.replace(full_tag, replacement_value)

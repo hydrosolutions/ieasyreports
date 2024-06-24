@@ -138,18 +138,24 @@ class DefaultReportGenerator:
             raise TemplateNotValidatedException(
                 "Template must be validated first. Did you forget to call the `.validate()` method?"
             )
+
+        list_objects = list_objects or []
+
+        context = {"list_objects": list_objects}
         for tag, cells in self.general_tags.items():
             for cell in cells:
-                cell.value = tag.replace(cell.value)
+                try:
+                    cell.value = tag.replace(cell.value, context=context)
+                except Exception as e:
+                    raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
 
         if self.header_tag_info:
             grouped_data = {}
-            list_objects = list_objects if list_objects else []
             for list_obj in list_objects:
+                context["obj"] = list_obj
                 header_value = self.header_tag_info["tag"].replace(
                     self.header_tag_info["cell"].value,
-                    special="HEADER",
-                    obj=list_obj
+                    context=context
                 )
 
                 if header_value not in grouped_data:
@@ -169,10 +175,11 @@ class DefaultReportGenerator:
                 cell.font = header_style
 
                 for item in item_group:
+                    context["obj"] = item
                     self.sheet.insert_rows(original_header_row + 1)
                     for idx, data_tag in enumerate(self.data_tags_info):
                         tag = data_tag["tag"]
-                        data = tag.replace(data_tag["cell"].value, obj=item, special=self.tag_settings.data_tag)
+                        data = tag.replace(data_tag["cell"].value, context=context)
                         cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column, value=data)
                         cell.font = data_styles[idx]
 
