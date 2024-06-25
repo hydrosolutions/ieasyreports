@@ -1,6 +1,8 @@
 import re
 from typing import Any, Dict, List, Optional
 import openpyxl
+from openpyxl.styles import Alignment, Font
+from openpyxl.worksheet.merge import MergedCellRange
 import os
 
 from ieasyreports.core.tags.tag import Tag
@@ -113,9 +115,13 @@ class DefaultReportGenerator:
                     "All elements in the `tags` list must be a `Tag` instance."
                 )
 
+    def _check_merged_cells(self):
+        self._has_merged_cells = bool(self.sheet.merged_cells.ranges)
+
     def validate(self):
         self._check_tags()
         self._check_template_tags()
+        self._check_merged_cells()
         self._validate_header_tag()
         self._validate_data_tags()
         self.validated = True
@@ -130,6 +136,103 @@ class DefaultReportGenerator:
 
         self.template.save(os.path.join(output_path, name))
 
+    def _handle_general_tags(self):
+        context = {}
+        for tag, cells in self.general_tags.items():
+            for cell in cells:
+                try:
+                    cell.value = tag.replace(cell.value, context=context)
+                except Exception as e:
+                    raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
+
+    def _unmerge_cells(self) -> list[MergedCellRange]:
+        # identify merged cells
+        template_merged_ranges = list(self.sheet.merged_cells.ranges)
+
+        # Unmerge all cells in the sheet initially to avoid conflicts
+        for merged_cell_range in template_merged_ranges:
+            self.sheet.unmerge_cells(str(merged_cell_range))
+
+        return template_merged_ranges
+
+    def _merge_cells(self, row: int, original_merged_cell_ranges: list[MergedCellRange]):
+        for merged_cell_range in original_merged_cell_ranges:
+            merged_range = str(merged_cell_range).split(":")
+            start_cell = merged_range[0]
+            end_cell = merged_range[1]
+            start_row = row
+            end_row = row
+            start_column = self.sheet[start_cell].column
+            end_column = self.sheet[end_cell].column
+
+            self.sheet.merge_cells(
+                start_row=start_row, start_column=start_column, end_row=end_row, end_column=end_column
+            )
+
+    def _handle_header_and_data_tags(self, list_objects: list[Any], merged_cell_ranges: list[MergedCellRange]):
+        grouped_data = self._group_data_by_header(list_objects)
+        original_header_row = self.header_tag_info["cell"].row
+        header_style, header_alignment, data_styles, data_alignments = self._get_styles()
+
+        self.sheet.delete_rows(original_header_row, 2)
+
+        for header_value, item_group in sorted(grouped_data.items()):
+            self._write_header_value(
+                header_value, original_header_row, header_style, header_alignment, merged_cell_ranges
+            )
+            self._write_data_rows(item_group, original_header_row, data_styles, data_alignments)
+            original_header_row += len(item_group) + 1
+
+
+    def _group_data_by_header(self, list_objects: list[Any]) -> dict[str, list[Any]]:
+        grouped_data = {}
+        for list_obj in list_objects:
+            context = {"obj": list_obj, "special": self.tag_settings.header_tag}
+            header_value = self.header_tag_info["tag"].replace(self.header_tag_info["cell"].value, context=context)
+
+            if header_value not in grouped_data:
+                grouped_data[header_value] = []
+
+            grouped_data[header_value].append(list_obj)
+
+        return grouped_data
+
+    def _get_styles(self) -> tuple[Font, Alignment, list[Font], list[Alignment]]:
+        header_style = self.header_tag_info["cell"].font.copy()
+        header_alignment = self.header_tag_info["cell"].alignment.copy()
+        data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
+        data_alignments = [data_tag["cell"].alignment.copy() for data_tag in self.data_tags_info]
+
+        return header_style, header_alignment, data_styles, data_alignments
+
+    def _write_header_value(
+        self,
+        header_value: str,
+        row: int,
+        style: Font,
+        alignment: Alignment,
+        merged_cell_ranges: list[MergedCellRange]
+    ):
+        self.sheet.insert_rows(row)
+        self._merge_cells(row, merged_cell_ranges)
+        cell = self.sheet.cell(row=row, column=self.header_tag_info["cell"].column, value=header_value)
+        cell.font = style
+        cell.alignment = alignment
+
+    def _write_data_rows(
+        self, item_group: list[Any], row: int, data_styles: list[Font], data_alignments: list[Alignment]
+    ):
+        context = {"special": self.tag_settings.data_tag}
+        for item in item_group:
+            context["obj"] = item
+            self.sheet.insert_rows(row + 1)
+            for idx, data_tag in enumerate(self.data_tags_info):
+                tag = data_tag["tag"]
+                data = tag.replace(data_tag["cell"].value, context=context)
+                cell = self.sheet.cell(row=row + 1, column=data_tag["cell"].column, value=data)
+                cell.font = data_styles[idx]
+                cell.alignment = data_alignments[idx]
+
     def generate_report(
         self, list_objects: Optional[List[Any]] = None,
         output_path: Optional[str] = None, output_filename: Optional[str] = None
@@ -140,49 +243,13 @@ class DefaultReportGenerator:
             )
 
         list_objects = list_objects or []
+        merged_cells = []
 
-        context = {"list_objects": list_objects}
-        for tag, cells in self.general_tags.items():
-            for cell in cells:
-                try:
-                    cell.value = tag.replace(cell.value, context=context)
-                except Exception as e:
-                    raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
+        self._handle_general_tags()
+        if self._has_merged_cells:
+            merged_cells = self._unmerge_cells()
 
         if self.header_tag_info:
-            grouped_data = {}
-            for list_obj in list_objects:
-                context["obj"] = list_obj
-                header_value = self.header_tag_info["tag"].replace(
-                    self.header_tag_info["cell"].value,
-                    context=context
-                )
-
-                if header_value not in grouped_data:
-                    grouped_data[header_value] = []
-                grouped_data[header_value].append(list_obj)
-
-            original_header_row = self.header_tag_info["cell"].row
-            header_style = self.header_tag_info["cell"].font.copy()
-            data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
-
-            self.sheet.delete_rows(original_header_row, 2)
-
-            for header_value, item_group in sorted(grouped_data.items()):
-                # write the header value
-                self.sheet.insert_rows(original_header_row)
-                cell = self.sheet.cell(row=original_header_row, column=self.header_tag_info["cell"].column, value=header_value)
-                cell.font = header_style
-
-                for item in item_group:
-                    context["obj"] = item
-                    self.sheet.insert_rows(original_header_row + 1)
-                    for idx, data_tag in enumerate(self.data_tags_info):
-                        tag = data_tag["tag"]
-                        data = tag.replace(data_tag["cell"].value, context=context)
-                        cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column, value=data)
-                        cell.font = data_styles[idx]
-
-                original_header_row += len(item_group) + 1
+            self._handle_header_and_data_tags(list_objects, merged_cells)
 
         self.save_report(output_filename, output_path)
