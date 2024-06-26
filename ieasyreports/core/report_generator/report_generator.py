@@ -136,8 +136,7 @@ class DefaultReportGenerator:
 
         self.template.save(os.path.join(output_path, name))
 
-    def _handle_general_tags(self):
-        context = {}
+    def _handle_general_tags(self, context):
         for tag, cells in self.general_tags.items():
             for cell in cells:
                 try:
@@ -169,8 +168,13 @@ class DefaultReportGenerator:
                 start_row=start_row, start_column=start_column, end_row=end_row, end_column=end_column
             )
 
-    def _handle_header_and_data_tags(self, list_objects: list[Any], merged_cell_ranges: list[MergedCellRange]):
-        grouped_data = self._group_data_by_header(list_objects)
+    def _handle_header_and_data_tags(
+        self,
+        list_objects: list[Any],
+        merged_cell_ranges: list[MergedCellRange],
+        context: Dict[str, Any]
+    ):
+        grouped_data = self._group_data_by_header(list_objects, context)
         original_header_row = self.header_tag_info["cell"].row
         header_style, header_alignment, data_styles, data_alignments = self._get_styles()
 
@@ -180,14 +184,13 @@ class DefaultReportGenerator:
             self._write_header_value(
                 header_value, original_header_row, header_style, header_alignment, merged_cell_ranges
             )
-            self._write_data_rows(item_group, original_header_row, data_styles, data_alignments)
+            self._write_data_rows(item_group, original_header_row, data_styles, data_alignments, context)
             original_header_row += len(item_group) + 1
 
-
-    def _group_data_by_header(self, list_objects: list[Any]) -> dict[str, list[Any]]:
+    def _group_data_by_header(self, list_objects: list[Any], context: Dict[str, Any]) -> dict[str, list[Any]]:
         grouped_data = {}
         for list_obj in list_objects:
-            context = {"obj": list_obj, "special": self.tag_settings.header_tag}
+            context = {**context, "obj": list_obj, "special": self.tag_settings.header_tag}
             header_value = self.header_tag_info["tag"].replace(self.header_tag_info["cell"].value, context=context)
 
             if header_value not in grouped_data:
@@ -220,9 +223,10 @@ class DefaultReportGenerator:
         cell.alignment = alignment
 
     def _write_data_rows(
-        self, item_group: list[Any], row: int, data_styles: list[Font], data_alignments: list[Alignment]
+        self, item_group: list[Any], row: int, data_styles: list[Font],
+        data_alignments: list[Alignment], context: Dict[str, Any]
     ):
-        context = {"special": self.tag_settings.data_tag}
+        context = {**context, "special": self.tag_settings.data_tag}
         for item in item_group:
             context["obj"] = item
             self.sheet.insert_rows(row + 1)
@@ -235,7 +239,8 @@ class DefaultReportGenerator:
 
     def generate_report(
         self, list_objects: Optional[List[Any]] = None,
-        output_path: Optional[str] = None, output_filename: Optional[str] = None
+        output_path: Optional[str] = None, output_filename: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None
     ):
         if not self.validated:
             raise TemplateNotValidatedException(
@@ -244,8 +249,9 @@ class DefaultReportGenerator:
 
         list_objects = list_objects or []
         merged_cells = []
+        context = context or {}
 
-        self._handle_general_tags()
+        self._handle_general_tags(context)
         if self._has_merged_cells:
             merged_cells = self._unmerge_cells()
 

@@ -10,11 +10,13 @@ class Tag:
         name: str,
         get_value_fn: Union[Callable, str],
         tag_settings: TagSettings,
+        description: str = None,
         value_fn_args: Optional[Dict[Any, Any]] = None,
         custom_number_format_fn: Optional[Callable] = None,
     ):
         self.name = name
         self.get_value_fn = get_value_fn
+        self.description = description
         self.value_fn_args = value_fn_args if value_fn_args else {}
         self.custom_number_format_fn = custom_number_format_fn
         self.settings = tag_settings
