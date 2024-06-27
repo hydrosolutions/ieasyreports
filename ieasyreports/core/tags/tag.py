@@ -20,6 +20,7 @@ class Tag:
         self.value_fn_args = value_fn_args if value_fn_args else {}
         self.custom_number_format_fn = custom_number_format_fn
         self.settings = tag_settings
+        self.context = self.value_fn_args
 
     def __repr__(self):
         return self.name
@@ -30,16 +31,18 @@ class Tag:
     def __hash__(self):
         return hash(self.name)
 
-    def replace(self, content, context: Optional[dict[str, Any]] = None):
-        context = context or {}
-        context = {**context, **self.value_fn_args}
-        if "special" in context:
-            full_tag = self.full_tag(special=context.pop("special"))
+    def set_context(self, context: Dict[str, Any]):
+        """Sets the context for the tag."""
+        self.context.update(context)
+
+    def replace(self, content):
+        if "special" in self.context:
+            full_tag = self.full_tag(special=self.context.pop("special"))
         else:
             full_tag = self.full_tag()
         if full_tag in content:
             if self.has_callable_value_fn():
-                replacement_value = str(self.get_value_fn(**context))
+                replacement_value = str(self.get_value_fn(**self.context))
             else:
                 replacement_value = self.get_value_fn
             if self.has_custom_format():
