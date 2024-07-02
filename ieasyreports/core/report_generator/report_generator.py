@@ -5,7 +5,7 @@ import openpyxl
 from openpyxl.cell import Cell
 from openpyxl.formula.translate import Translator
 from openpyxl.styles import Alignment, Font
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, coordinate_to_tuple
 from openpyxl.worksheet.worksheet import Worksheet
 import os
 
@@ -191,7 +191,7 @@ class DefaultReportGenerator:
         self._update_cell_formula(cell_to_move, src_cell, dest_row, dest_col)
 
         if move_merged:
-            self._handle_merged_cells(worksheet, src_cell, cell_to_move, dest_row, dest_col)
+            self._handle_merged_cells(worksheet, src_cell, dest_row, dest_col)
 
         if not preserve_original:
             del worksheet._cells[(src_cell.row, src_cell.column)]
@@ -199,28 +199,31 @@ class DefaultReportGenerator:
         return cell_to_move
 
     def _handle_merged_cells(
-        self, worksheet: Worksheet, src_cell: Cell, cell_to_move: Cell, dest_row: int, dest_col: int
+        self, worksheet: Worksheet, src_cell: Cell, dest_row: int, dest_col: int
     ) -> None:
-        for range_ in worksheet.merged_cells.ranges:
-            start_cell_, end_cell_ = str(range_).split(':')
-            if src_cell.coordinate == start_cell_:
-                src_end_cell = worksheet[end_cell_]
+        for merged_cell_range in worksheet.merged_cells.ranges:
+            if src_cell.coordinate == merged_cell_range:
+                start_cell, end_cell = str(merged_cell_range).split(':')
+                start_row, start_col = coordinate_to_tuple(start_cell)
+                end_row, end_col = coordinate_to_tuple(end_cell)
+
                 row_diff = dest_row - src_cell.row
                 col_diff = dest_col - src_cell.column
 
-                row_idx = src_end_cell.row + row_diff
-                col_idx = src_end_cell.column + col_diff
-                end_cell = worksheet.cell(row=row_idx, column=col_idx)
+                new_start_row = start_row + row_diff
+                new_start_col = start_col + col_diff
+                new_end_row = end_row + row_diff
+                new_end_col = end_col + col_diff
 
-                worksheet.merge_cells(
-                    start_row=dest_row,
-                    start_column=dest_col,
-                    end_row=row_idx,
-                    end_column=col_idx
-                )
+                new_start_cell = get_column_letter(new_start_col) + str(new_start_row)
+                new_end_cell = get_column_letter(new_end_col) + str(new_end_row)
 
-                worksheet.unmerge_cells(str(range_))
-                break  # Stop after finding the first relevant merged range
+                new_range = f"{new_start_cell}:{new_end_cell}"
+
+                # Unmerge the original range and merge the new range
+                worksheet.unmerge_cells(str(merged_cell_range))
+                worksheet.merge_cells(new_range)
+                break  # Exit after the first relevant merged range is found
 
     def _create_cell_to_move(self, src_cell: Cell, worksheet: Worksheet, preserve_original: bool) -> Cell:
         if preserve_original:
@@ -248,6 +251,23 @@ class DefaultReportGenerator:
                 f"{get_column_letter(dest_col)}{dest_row}"
             )
 
+    def _merge_cells(self, row: int, original_merged_cell_ranges: list[Any]) -> None:
+        for merged_cell_range in original_merged_cell_ranges:
+            start_cell, end_cell = str(merged_cell_range).split(':')
+            start_row, start_col = coordinate_to_tuple(start_cell)
+            end_row, end_col = coordinate_to_tuple(end_cell)
+
+            if start_row == row:
+                self.sheet.merge_cells(
+                    start_row=row, start_column=start_col, end_row=row + (end_row - start_row), end_column=end_col
+                )
+
+    def _unmerge_cells(self) -> list[Any]:
+        template_merged_ranges = list(self.sheet.merged_cells.ranges)
+        for merged_cell_range in template_merged_ranges:
+            self.sheet.unmerge_cells(str(merged_cell_range))
+        return template_merged_ranges
+
     def save_report(self, name: str, output_path: str):
         if output_path is None:
             output_path = self.reports_directory_path
@@ -269,18 +289,18 @@ class DefaultReportGenerator:
     def _handle_header_and_data_tags(
         self,
         list_objects: list[Any],
+        merged_cell_ranges: list[Any]
     ):
         grouped_data = self._group_data_by_header(list_objects)
         original_header_row = self.header_tag_info["cell"].row
-        header_style, header_alignment, data_styles, data_alignments = self._get_styles()
 
         self.sheet.delete_rows(original_header_row, 2)
 
         for header_value, item_group in sorted(grouped_data.items()):
             self._write_header_value(
-                header_value, original_header_row, header_style, header_alignment
+                header_value, original_header_row, merged_cell_ranges
             )
-            self._write_data_rows(item_group, original_header_row, data_styles, data_alignments)
+            self._write_data_rows(item_group, original_header_row)
             original_header_row += len(item_group) + 1
 
     def _group_data_by_header(self, list_objects: list[Any]) -> dict[str, list[Any]]:
@@ -296,39 +316,21 @@ class DefaultReportGenerator:
 
         return grouped_data
 
-    def _get_styles(self) -> tuple[Font, Alignment, list[Font], list[Alignment]]:
-        header_style = self.header_tag_info["cell"].font.copy()
-        header_alignment = self.header_tag_info["cell"].alignment.copy()
-        data_styles = [data_tag["cell"].font.copy() for data_tag in self.data_tags_info]
-        data_alignments = [data_tag["cell"].alignment.copy() for data_tag in self.data_tags_info]
-
-        return header_style, header_alignment, data_styles, data_alignments
-
-    def _write_header_value(
-        self,
-        header_value: str,
-        row: int,
-        style: Font,
-        alignment: Alignment,
-    ):
+    def _write_header_value(self, header_value: str, row: int, merged_cell_ranges: list[Any]) -> None:
         self.sheet.insert_rows(row)
-        cell = self.sheet.cell(row=row, column=self.header_tag_info["cell"].column, value=header_value)
-        cell.font = style
-        cell.alignment = alignment
+        self._merge_cells(row, merged_cell_ranges)
+        _ = self.sheet.cell(row=row, column=self.header_tag_info["cell"].column, value=header_value)
 
-    def _write_data_rows(
-        self, item_group: list[Any], row: int, data_styles: list[Font],
-        data_alignments: list[Alignment]
-    ):
+    def _write_data_rows(self, item_group: list[Any], row: int) -> None:
         for item in item_group:
             self.sheet.insert_rows(row + 1)
-            for idx, data_tag in enumerate(self.data_tags_info):
+            for data_tag in self.data_tags_info:
                 tag = data_tag["tag"]
                 tag.set_context({"obj": item})
                 data = tag.replace(data_tag["cell"].value)
                 cell = self.sheet.cell(row=row + 1, column=data_tag["cell"].column, value=data)
-                cell.font = data_styles[idx]
-                cell.alignment = data_alignments[idx]
+                self._copy_cell_style(data_tag["cell"], cell)
+            row += 1
 
     def _add_global_tag_context(self, context: Dict[str, Any]):
         self.header_tag_info["tag"].set_context(context)
@@ -348,12 +350,17 @@ class DefaultReportGenerator:
             )
 
         list_objects = list_objects or []
+        merged_cells = []
+
         if context:
             self._add_global_tag_context(context)
 
         self._handle_general_tags()
 
+        if bool(self.sheet.merged_cells.ranges):
+            merged_cells = self._unmerge_cells()
+
         if self.header_tag_info:
-            self._handle_header_and_data_tags(list_objects)
+            self._handle_header_and_data_tags(list_objects, merged_cells)
 
         self.save_report(output_filename, output_path)
