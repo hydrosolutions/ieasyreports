@@ -251,16 +251,6 @@ class DefaultReportGenerator:
                 f"{get_column_letter(dest_col)}{dest_row}"
             )
 
-    def _merge_cells(self, row: int, original_merged_cell_ranges: list[Any]) -> None:
-        for merged_cell_range in original_merged_cell_ranges:
-            start_cell, end_cell = str(merged_cell_range).split(':')
-            start_row, start_col = coordinate_to_tuple(start_cell)
-            end_row, end_col = coordinate_to_tuple(end_cell)
-
-            if start_row == row:
-                self.sheet.merge_cells(
-                    start_row=row, start_column=start_col, end_row=row + (end_row - start_row), end_column=end_col
-                )
 
     def _unmerge_cells(self) -> list[Any]:
         template_merged_ranges = list(self.sheet.merged_cells.ranges)
@@ -283,13 +273,13 @@ class DefaultReportGenerator:
             for cell in cells:
                 try:
                     cell.value = tag.replace(cell.value)
+                    print(cell)
                 except Exception as e:
                     raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
 
     def _handle_header_and_data_tags(
         self,
-        list_objects: list[Any],
-        merged_cell_ranges: list[Any]
+        list_objects: list[Any]
     ):
         grouped_data = self._group_data_by_header(list_objects)
         original_header_row = self.header_tag_info["cell"].row
@@ -298,7 +288,7 @@ class DefaultReportGenerator:
 
         for header_value, item_group in sorted(grouped_data.items()):
             self._write_header_value(
-                header_value, original_header_row, merged_cell_ranges
+                header_value, original_header_row
             )
             self._write_data_rows(item_group, original_header_row)
             original_header_row += len(item_group) + 1
@@ -316,9 +306,8 @@ class DefaultReportGenerator:
 
         return grouped_data
 
-    def _write_header_value(self, header_value: str, row: int, merged_cell_ranges: list[Any]) -> None:
+    def _write_header_value(self, header_value: str, row: int) -> None:
         self.sheet.insert_rows(row)
-        self._merge_cells(row, merged_cell_ranges)
         _ = self.sheet.cell(row=row, column=self.header_tag_info["cell"].column, value=header_value)
 
     def _write_data_rows(self, item_group: list[Any], row: int) -> None:
@@ -350,17 +339,13 @@ class DefaultReportGenerator:
             )
 
         list_objects = list_objects or []
-        merged_cells = []
 
         if context:
             self._add_global_tag_context(context)
 
         self._handle_general_tags()
 
-        if bool(self.sheet.merged_cells.ranges):
-            merged_cells = self._unmerge_cells()
-
         if self.header_tag_info:
-            self._handle_header_and_data_tags(list_objects, merged_cells)
+            self._handle_header_and_data_tags(list_objects)
 
         self.save_report(output_filename, output_path)
