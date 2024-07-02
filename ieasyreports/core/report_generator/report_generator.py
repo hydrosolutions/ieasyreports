@@ -1,15 +1,19 @@
 import re
+from copy import copy
 from typing import Any, Dict, List, Optional
 import openpyxl
+from openpyxl.cell import Cell
+from openpyxl.formula.translate import Translator
 from openpyxl.styles import Alignment, Font
-from openpyxl.worksheet.merge import MergedCellRange
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 import os
 
 from ieasyreports.core.tags.tag import Tag
 from ieasyreports.settings import TagSettings
 from ieasyreports.exceptions import (
     InvalidTagException, TemplateNotValidatedException, MultipleHeaderTagsException, MissingHeaderTagException,
-    TemplateNotFoundException,
+    TemplateNotFoundException, MissingDataTagException
 )
 
 
@@ -37,6 +41,14 @@ class DefaultReportGenerator:
         self.header_tag_info = {}
         self.data_tags_info = []
         self.general_tags = {}
+
+    def validate(self):
+        self._check_tags()
+        self._check_template_tags()
+        self._validate_header_and_data_tags()
+        self._validate_header_tag()
+        self._validate_data_tags()
+        self.validated = True
 
     def _get_template_full_path(self) -> str:
         return os.path.join(self.templates_directory_path, self.template_filename)
@@ -91,7 +103,7 @@ class DefaultReportGenerator:
         except TypeError:
             return []
 
-    def _check_template_tags(self):
+    def _check_template_tags(self) -> None:
         for cell in self.iter_cells():
             if cell.value is None:
                 continue
@@ -103,30 +115,138 @@ class DefaultReportGenerator:
 
                 self._categorize_tag_by_type(tag_info, cell)
 
-    def _validate_header_tag(self):
+    def _validate_header_and_data_tags(self) -> None:
+        self._validate_header_tag()
+        self._validate_data_tags()
+
+    def _validate_header_tag(self) -> None:
         if self.requires_header_tag and not self.header_tag_info:
             raise MissingHeaderTagException("Header tag is missing in the template.")
 
-    def _validate_data_tags(self):
-        pass
+    def _validate_data_tags(self) -> None:
+        header_row = self.header_tag_info["cell"].row
 
-    def _check_tags(self):
+        if not self.data_tags_info:
+            raise MissingDataTagException("At least one DATA tag is required.")
+
+        data_row = None
+        for cell_info in self.data_tags_info:
+            data_row_ = cell_info["cell"].row
+            if data_row is None:
+                data_row = data_row_
+            if data_row != data_row_:
+                raise InvalidTagException("All DATA tags must be in the same row.")
+        if data_row - header_row != 1:
+            raise InvalidTagException("DATA tags must be exactly 1 row below the HEADER tag.")
+
+    def _check_tags(self) -> None:
         for tag in self.tags.values():
             if not isinstance(tag, Tag):
                 raise InvalidTagException(
                     "All elements in the `tags` list must be a `Tag` instance."
                 )
 
-    def _check_merged_cells(self):
-        self._has_merged_cells = bool(self.sheet.merged_cells.ranges)
+    @staticmethod
+    def _copy_cell_style(src: Cell, dest: Cell) -> None:
+        dest.font = copy(src.font)
+        dest.border = copy(src.border)
+        dest.fill = copy(src.fill)
+        dest.number_format = copy(src.number_format)
+        dest.protection = copy(src.protection)
+        dest.alignment = copy(src.alignment)
 
-    def validate(self):
-        self._check_tags()
-        self._check_template_tags()
-        self._check_merged_cells()
-        self._validate_header_tag()
-        self._validate_data_tags()
-        self.validated = True
+    def _copy_range(
+        self,
+        range_start: tuple[int, int],
+        range_end: tuple[int, int],
+        dest_ranges: list[tuple[int, int]]
+    ) -> None:
+        source_rows = list(self.sheet.iter_rows(
+            min_row=range_start[0], max_row=range_end[0], min_col=range_start[1], max_col=range_end[1])
+        )
+        for dest_range_start in dest_ranges:
+            dest_row = dest_range_start[0]
+            dest_col = dest_range_start[1]
+
+            for row in source_rows:
+                cells = row
+                for cell in cells:
+                    self._move_cell(
+                        src_cell=cell,
+                        dest_row=dest_row,
+                        dest_col=dest_col,
+                        preserve_original=True,
+                        move_merged=True
+                    )
+                    dest_col += 1
+                dest_row += 1
+
+    def _move_cell(
+        self, src_cell: Cell, dest_row: int, dest_col: int,
+        preserve_original: bool = False, move_merged: bool = False
+    ) -> Cell:
+        worksheet = src_cell.parent
+        cell_to_move = self._create_cell_to_move(src_cell, worksheet, preserve_original)
+        self._perform_cell_move(worksheet, cell_to_move, dest_row, dest_col)
+        self._update_cell_formula(cell_to_move, src_cell, dest_row, dest_col)
+
+        if move_merged:
+            self._handle_merged_cells(worksheet, src_cell, cell_to_move, dest_row, dest_col)
+
+        if not preserve_original:
+            del worksheet._cells[(src_cell.row, src_cell.column)]
+
+        return cell_to_move
+
+    def _handle_merged_cells(
+        self, worksheet: Worksheet, src_cell: Cell, cell_to_move: Cell, dest_row: int, dest_col: int
+    ) -> None:
+        for range_ in worksheet.merged_cells.ranges:
+            start_cell_, end_cell_ = str(range_).split(':')
+            if src_cell.coordinate == start_cell_:
+                src_end_cell = worksheet[end_cell_]
+                row_diff = dest_row - src_cell.row
+                col_diff = dest_col - src_cell.column
+
+                row_idx = src_end_cell.row + row_diff
+                col_idx = src_end_cell.column + col_diff
+                end_cell = worksheet.cell(row=row_idx, column=col_idx)
+
+                worksheet.merge_cells(
+                    start_row=dest_row,
+                    start_column=dest_col,
+                    end_row=row_idx,
+                    end_column=col_idx
+                )
+
+                worksheet.unmerge_cells(str(range_))
+                break  # Stop after finding the first relevant merged range
+
+    def _create_cell_to_move(self, src_cell: Cell, worksheet: Worksheet, preserve_original: bool) -> Cell:
+        if preserve_original:
+            cell_to_move = worksheet.cell(row=src_cell.row, column=src_cell.column)
+            cell_to_move.value = src_cell.value
+            self._copy_cell_style(src_cell, cell_to_move)
+        else:
+            cell_to_move = src_cell
+
+        return cell_to_move
+
+    @staticmethod
+    def _perform_cell_move(worksheet: Worksheet, cell_to_move: Cell, dest_row: int, dest_col: int) -> None:
+        worksheet._move_cell(
+            cell_to_move.row, cell_to_move.column, dest_row - cell_to_move.row, dest_col - cell_to_move.column
+        )
+
+    @staticmethod
+    def _update_cell_formula(cell_to_move: Cell, src_cell: Cell, dest_row: int, dest_col: int) -> None:
+        if cell_to_move.data_type == 'f':
+            cell_to_move.value = Translator(
+                cell_to_move.value,
+                f"{get_column_letter(src_cell.column)}{src_cell.row}"
+            ).translate_formula(
+                f"{get_column_letter(dest_col)}{dest_row}"
+            )
 
     def save_report(self, name: str, output_path: str):
         if output_path is None:
@@ -146,34 +266,9 @@ class DefaultReportGenerator:
                 except Exception as e:
                     raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
 
-    def _unmerge_cells(self) -> list[MergedCellRange]:
-        # identify merged cells
-        template_merged_ranges = list(self.sheet.merged_cells.ranges)
-
-        # Unmerge all cells in the sheet initially to avoid conflicts
-        for merged_cell_range in template_merged_ranges:
-            self.sheet.unmerge_cells(str(merged_cell_range))
-
-        return template_merged_ranges
-
-    def _merge_cells(self, row: int, original_merged_cell_ranges: list[MergedCellRange]):
-        for merged_cell_range in original_merged_cell_ranges:
-            merged_range = str(merged_cell_range).split(":")
-            start_cell = merged_range[0]
-            end_cell = merged_range[1]
-            start_row = row
-            end_row = row
-            start_column = self.sheet[start_cell].column
-            end_column = self.sheet[end_cell].column
-
-            self.sheet.merge_cells(
-                start_row=start_row, start_column=start_column, end_row=end_row, end_column=end_column
-            )
-
     def _handle_header_and_data_tags(
         self,
         list_objects: list[Any],
-        merged_cell_ranges: list[MergedCellRange]
     ):
         grouped_data = self._group_data_by_header(list_objects)
         original_header_row = self.header_tag_info["cell"].row
@@ -183,7 +278,7 @@ class DefaultReportGenerator:
 
         for header_value, item_group in sorted(grouped_data.items()):
             self._write_header_value(
-                header_value, original_header_row, header_style, header_alignment, merged_cell_ranges
+                header_value, original_header_row, header_style, header_alignment
             )
             self._write_data_rows(item_group, original_header_row, data_styles, data_alignments)
             original_header_row += len(item_group) + 1
@@ -215,10 +310,8 @@ class DefaultReportGenerator:
         row: int,
         style: Font,
         alignment: Alignment,
-        merged_cell_ranges: list[MergedCellRange]
     ):
         self.sheet.insert_rows(row)
-        self._merge_cells(row, merged_cell_ranges)
         cell = self.sheet.cell(row=row, column=self.header_tag_info["cell"].column, value=header_value)
         cell.font = style
         cell.alignment = alignment
@@ -255,16 +348,12 @@ class DefaultReportGenerator:
             )
 
         list_objects = list_objects or []
-        merged_cells = []
-
         if context:
             self._add_global_tag_context(context)
 
         self._handle_general_tags()
-        if self._has_merged_cells:
-            merged_cells = self._unmerge_cells()
 
         if self.header_tag_info:
-            self._handle_header_and_data_tags(list_objects, merged_cells)
+            self._handle_header_and_data_tags(list_objects)
 
         self.save_report(output_filename, output_path)
