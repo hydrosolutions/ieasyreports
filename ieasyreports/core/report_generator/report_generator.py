@@ -167,20 +167,32 @@ class DefaultReportGenerator:
                     raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
 
     def _handle_header_and_data_tags(self, list_objects: list[Any]) -> None:
+        original_header_cell = self.header_tag_info["cell"]
+        original_header_row = original_header_cell.row
+        original_header_col = original_header_cell.col_idx
+        first_data_row = original_header_row + 1
         grouped_data = self._create_header_grouping(list_objects)
-        self._insert_empty_rows_for_data(grouped_data)
-        header_dest_ranges, data_dest_ranges = self._get_cell_copy_ranges(grouped_data)
-        print(header_dest_ranges)
-        print(data_dest_ranges)
+        self._insert_empty_rows_for_data(grouped_data, original_header_row)
+        header_dest_ranges, data_dest_ranges = self._get_cell_copy_ranges(
+            grouped_data, original_header_row, original_header_col, first_data_row
+        )
+
+        self._copy_cell_range(
+            (original_header_row, original_header_col),
+            (original_header_row, original_header_col),
+            header_dest_ranges
+        )
+        self._copy_cell_range(
+            (first_data_row, 1),
+            (first_data_row, 25),
+            data_dest_ranges
+        )
 
     def _get_cell_copy_ranges(
-        self, grouped_data: dict[str, list[Any]]
+        self, grouped_data: dict[str, list[Any]], original_header_row: int, original_header_col: int, first_data_row: int
     ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
         header_tags_dest_ranges = []
         data_tags_dest_ranges = []
-        original_header_row = self.header_tag_info["cell"].row
-        original_header_col = self.header_tag_info["cell"].col_idx
-        data_tags_row = original_header_row + 1
         current_row = original_header_row
 
         for header_value, header_items in grouped_data.items():
@@ -191,12 +203,32 @@ class DefaultReportGenerator:
             current_row += 1
             for item in header_items:
                 print(f"ITEM: {item} goes into row {current_row}")
-                if current_row != data_tags_row:
+                if current_row != first_data_row:
                     data_tags_dest_ranges.append((current_row, 1))
 
                 current_row += 1
 
         return header_tags_dest_ranges, data_tags_dest_ranges
+
+    def _copy_cell_range(
+        self, range_start: tuple[int, int], range_end: tuple[int, int], dest_ranges: list[tuple[int, int]]
+    ) -> None:
+        for dest_range_start in dest_ranges:
+            dest_row, dest_col = dest_range_start
+            for cell in self.sheet.iter_rows(
+                min_row=range_start[0],
+                min_col=range_start[1],
+                max_row=range_end[0],
+                max_col=range_end[1]
+            ):
+                pass
+
+    def _move_cell(
+        self, src_cell: Cell, dest_row: int, dest_col: int, preserve_original: bool = False, move_merged: bool = False
+    ):
+        dest_cell = self.sheet.cell(row=dest_row, column=dest_col, value=src_cell.value)
+        if preserve_original:
+            self._copy_cell_style(src_cell, dest_cell)
 
     def _create_header_grouping(self, list_objects: list[Any]) -> dict[str, list[Any]]:
         grouped_data = {}
@@ -212,18 +244,17 @@ class DefaultReportGenerator:
         return grouped_data
 
     def _insert_empty_rows_for_data(
-        self, grouped_data: dict[str, list[Any]]
+        self, grouped_data: dict[str, list[Any]], original_header_row: int
     ):
         # calculate the number of rows that need to be inserted
         num_of_new_rows = sum(len(objs) for objs in grouped_data.values()) + len(grouped_data) - 2
 
         # insert the rows
-        original_header_row = self.header_tag_info["cell"].row
         data_tags_row = original_header_row + 1
         self.sheet.insert_rows(data_tags_row + 1, num_of_new_rows)
 
     @staticmethod
-    def _copy_cell_style(self, src: Cell, dest: Cell):
+    def _copy_cell_style(src: Cell, dest: Cell):
         dest.value = src.value
         if src.has_style:
             dest.font = copy(src.font)
