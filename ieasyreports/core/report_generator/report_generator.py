@@ -166,36 +166,37 @@ class DefaultReportGenerator:
                 except Exception as e:
                     raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
 
-    def _handle_header_and_data_tags(
-        self,
-        list_objects: list[Any]
-    ):
+    def _handle_header_and_data_tags(self, list_objects: list[Any]) -> None:
         grouped_data = self._create_header_grouping(list_objects)
-        original_header_row = self.header_tag_info["cell"].row
-        header_col = self.header_tag_info["cell"].col_idx
-        first_data_row = original_header_row + 1
+        self._insert_empty_rows_for_data(grouped_data)
+        header_dest_ranges, data_dest_ranges = self._get_cell_copy_ranges(grouped_data)
+        print(header_dest_ranges)
+        print(data_dest_ranges)
 
-        # insert empty rows needed for the grouped data
-        num_of_rows = len(list_objects) + len(grouped_data) - 2
-        self.sheet.insert_rows(first_data_row, num_of_rows)
+    def _get_cell_copy_ranges(
+        self, grouped_data: dict[str, list[Any]]
+    ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+        header_tags_dest_ranges = []
+        data_tags_dest_ranges = []
+        original_header_row = self.header_tag_info["cell"].row
+        original_header_col = self.header_tag_info["cell"].col_idx
+        data_tags_row = original_header_row + 1
         current_row = original_header_row
 
-        data_tags_dest_ranges = []
-        header_tags_dest_ranges = []
-
-        for header, header_objects in grouped_data.items():
+        for header_value, header_items in grouped_data.items():
+            print(f"HEADER: {header_value} goes into row {current_row}")
             if current_row != original_header_row:
-                header_tags_dest_ranges.append((current_row, header_col))
+                header_tags_dest_ranges.append((current_row, original_header_col))
 
             current_row += 1
-            for obj in header_objects:
-                if current_row != first_data_row:
+            for item in header_items:
+                print(f"ITEM: {item} goes into row {current_row}")
+                if current_row != data_tags_row:
                     data_tags_dest_ranges.append((current_row, 1))
 
                 current_row += 1
 
-        print(data_tags_dest_ranges)
-        print(header_tags_dest_ranges)
+        return header_tags_dest_ranges, data_tags_dest_ranges
 
     def _create_header_grouping(self, list_objects: list[Any]) -> dict[str, list[Any]]:
         grouped_data = {}
@@ -209,6 +210,28 @@ class DefaultReportGenerator:
             grouped_data[header_value].append(obj)
 
         return grouped_data
+
+    def _insert_empty_rows_for_data(
+        self, grouped_data: dict[str, list[Any]]
+    ):
+        # calculate the number of rows that need to be inserted
+        num_of_new_rows = sum(len(objs) for objs in grouped_data.values()) + len(grouped_data) - 2
+
+        # insert the rows
+        original_header_row = self.header_tag_info["cell"].row
+        data_tags_row = original_header_row + 1
+        self.sheet.insert_rows(data_tags_row + 1, num_of_new_rows)
+
+    @staticmethod
+    def _copy_cell_style(self, src: Cell, dest: Cell):
+        dest.value = src.value
+        if src.has_style:
+            dest.font = copy(src.font)
+            dest.border = copy(src.border)
+            dest.fill = copy(src.fill)
+            dest.number_format = copy(src.number_format)
+            dest.protection = copy(src.protection)
+            dest.alignment = copy(src.alignment)
 
     def _add_global_tag_context(self, context: Dict[str, Any]):
         self.header_tag_info["tag"].set_context(context)
