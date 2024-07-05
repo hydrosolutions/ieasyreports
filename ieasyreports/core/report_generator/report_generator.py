@@ -182,6 +182,7 @@ class DefaultReportGenerator:
             (original_header_row, original_header_col),
             header_dest_ranges
         )
+
         self._copy_cell_range(
             (first_data_row, 1),
             (first_data_row, 25),
@@ -196,13 +197,13 @@ class DefaultReportGenerator:
         current_row = original_header_row
 
         for header_value, header_items in grouped_data.items():
-            print(f"HEADER: {header_value} goes into row {current_row}")
+            print(f"HEADER VALUE: {header_value}")
             if current_row != original_header_row:
                 header_tags_dest_ranges.append((current_row, original_header_col))
 
             current_row += 1
             for item in header_items:
-                print(f"ITEM: {item} goes into row {current_row}")
+                print(f"ITEM: {item}")
                 if current_row != first_data_row:
                     data_tags_dest_ranges.append((current_row, 1))
 
@@ -221,14 +222,43 @@ class DefaultReportGenerator:
                 max_row=range_end[0],
                 max_col=range_end[1]
             ):
-                pass
+                self._move_cell(cell[0], dest_row, dest_col, True, True)
 
     def _move_cell(
         self, src_cell: Cell, dest_row: int, dest_col: int, preserve_original: bool = False, move_merged: bool = False
     ):
+        def get_new_cell_position(src_end_cell: Cell, row_diff: int, col_diff: int) -> Cell:
+            new_row_idx = src_end_cell.row + row_diff
+            new_col_idx = src_end_cell.column + col_diff
+            return self.sheet.cell(row=new_row_idx, column=new_col_idx)
+
         dest_cell = self.sheet.cell(row=dest_row, column=dest_col, value=src_cell.value)
         if preserve_original:
             self._copy_cell_style(src_cell, dest_cell)
+
+        merges_in_range = []
+        new_merged_ranges = []
+        if move_merged:
+            for merged_range in self.sheet.merged_cells.ranges:
+                merges_in_range.append(str(merged_range))
+                start_cell, end_cell = str(merged_range).split(":")
+                if src_cell.coordinate == start_cell:
+                    src_end_cell = self.sheet[end_cell]
+                    row_diff = dest_row - src_cell.row
+                    col_diff = dest_col - src_cell.col_idx
+
+                    new_end_cell = get_new_cell_position(src_end_cell, row_diff, col_diff)
+                    new_range = f"{get_column_letter(dest_col)}{dest_row}:{get_column_letter(new_end_cell.column)}{new_end_cell.row}"
+                    new_merged_ranges.append(new_range)
+
+            for new_range in new_merged_ranges:
+                self.sheet.merge_cells(new_range)
+
+        if not preserve_original:
+            for merged_range in merges_in_range:
+                print(f"Unmerging {merged_range}")
+                self.sheet.unmerge_cells(merged_range)
+            del self.sheet[src_cell.coordinate]
 
     def _create_header_grouping(self, list_objects: list[Any]) -> dict[str, list[Any]]:
         grouped_data = {}
@@ -249,13 +279,90 @@ class DefaultReportGenerator:
         # calculate the number of rows that need to be inserted
         num_of_new_rows = sum(len(objs) for objs in grouped_data.values()) + len(grouped_data) - 2
 
+        # Save current merged cells and styles
+        merged_cells = list(self.sheet.merged_cells.ranges)
         # insert the rows
         data_tags_row = original_header_row + 1
         self.sheet.insert_rows(data_tags_row + 1, num_of_new_rows)
 
+        self._reapply_merged_cells(merged_cells, data_tags_row + 1, num_of_new_rows)
+
+        for original_row in range(original_header_row + 1, self.sheet.max_row - num_of_new_rows + 1):
+            new_row = original_row + num_of_new_rows
+            self._copy_row_styles(original_row, new_row)
+
+        self._update_row_dimensions(data_tags_row + 1, num_of_new_rows)
+        self._update_formula_references(data_tags_row + 1, num_of_new_rows)
+
+    def _reapply_merged_cells(self, merged_cells, shift_start_row, shift_count):
+        for merged_range in merged_cells:
+            min_row, min_col, max_row, max_col = merged_range.bounds
+            if min_row >= shift_start_row:
+                min_row += shift_count
+                max_row += shift_count
+            self.sheet.merge_cells(start_row=min_row, start_column=min_col, end_row=max_row, end_column=max_col)
+
+    def _copy_row_styles(self, original_row, new_row):
+        for col in range(1, self.sheet.max_column + 1):
+            original_cell = self.sheet.cell(row=original_row, column=col)
+            new_cell = self.sheet.cell(row=new_row, column=col)
+            if isinstance(original_cell, MergedCell):
+                continue  # Skip MergedCells for both value and style copying
+            new_cell.value = original_cell.value  # Copy value for non-merged cells
+            self._copy_cell_style(original_cell, new_cell)
+
+    def _update_row_dimensions(self, start_row, count):
+        for row in range(len(self.sheet.row_dimensions) - 1 + count, start_row + count, -1):
+            new_rd = copy(self.sheet.row_dimensions[row - count])
+            new_rd.index = row
+            self.sheet.row_dimensions[row] = new_rd
+            del self.sheet.row_dimensions[row - count]
+
+    def _update_formula_references(self, shift_start_row, shift_count):
+        cell_re = re.compile("(?P<col>\$?[A-Z]+)(?P<row>\$?\d+)")
+
+        def replace(m):
+            current_row = m.group('row')
+            prefix = "$" if current_row.find("$") != -1 else ""
+            current_row = int(current_row.replace("$", ""))
+            current_row += shift_count if current_row > shift_start_row else 0
+            return m.group('col') + prefix + str(current_row)
+
+        old_cells = set()
+        old_fas = set()
+        new_cells = dict()
+        new_fas = dict()
+
+        for c in self.sheet._cells.values():
+            old_coor = c.coordinate
+            if c.data_type == "f":
+                c.value = cell_re.sub(replace, c.value)
+                if old_coor in self.sheet.formula_attributes and 'ref' in self.sheet.formula_attributes[old_coor]:
+                    self.sheet.formula_attributes[old_coor]['ref'] = cell_re.sub(replace, self.sheet.formula_attributes[
+                        old_coor]['ref'])
+
+            if c.row > shift_start_row:
+                old_coor = c.coordinate
+                old_cells.add((c.row, c.col_idx))
+                c.row += shift_count
+                new_cells[(c.row, c.col_idx)] = c
+                if old_coor in self.sheet.formula_attributes:
+                    old_fas.add(old_coor)
+                    fa = self.sheet.formula_attributes[old_coor].copy()
+                    new_fas[c.coordinate] = fa
+
+        for coor in old_cells:
+            del self.sheet._cells[coor]
+        self.sheet._cells.update(new_cells)
+
+        for fa in old_fas:
+            del self.sheet.formula_attributes[fa]
+        self.sheet.formula_attributes.update(new_fas)
+
     @staticmethod
     def _copy_cell_style(src: Cell, dest: Cell):
-        dest.value = src.value
+        if not isinstance(src, MergedCell):
+            dest.value = src.value
         if src.has_style:
             dest.font = copy(src.font)
             dest.border = copy(src.border)
