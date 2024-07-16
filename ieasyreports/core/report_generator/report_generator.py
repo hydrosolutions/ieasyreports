@@ -251,7 +251,30 @@ class DefaultReportGenerator:
 
         # insert the rows
         data_tags_row = original_header_row + 1
+        # TODO need to figure this out, here the styling, merges, alignments and everything gets messed up
+        # because of how openpyxl does the insert row - it shifts down only the cell content, all the styling on the
+        # source and destination cells remain the same and it breaks the template
         self.sheet.insert_rows(data_tags_row + 1, num_of_new_rows)
+
+    def _insert_rows_with_styles(self, start_row: int, num_rows: int):
+        for _ in range(num_rows):
+            self.sheet.insert_rows(start_row)
+            self._copy_styles_and_merges(start_row - 1, start_row)
+
+    def _copy_styles_and_merges(self, src_row: int, dest_row: int):
+        for col in range(1, self.sheet.max_column + 1):
+            src_cell = self.sheet.cell(row=src_row, column=col)
+            dest_cell = self.sheet.cell(row=dest_row, column=col)
+            if src_cell.has_style:
+                self._copy_cell_style(src_cell, dest_cell)
+            if isinstance(src_cell, MergedCell):
+                self._merge_cells(dest_cell.coordinate)
+
+    def _merge_cells(self, cell_coordinate: str):
+        for merge in self.sheet.merged_cells.ranges:
+            if cell_coordinate in merge:
+                self.sheet.merge_cells(str(merge))
+                break
 
     @staticmethod
     def _copy_cell_style(src: Cell, dest: Cell):
