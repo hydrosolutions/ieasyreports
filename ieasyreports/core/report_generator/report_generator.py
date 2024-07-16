@@ -182,6 +182,7 @@ class DefaultReportGenerator:
             (original_header_row, original_header_col),
             header_dest_ranges
         )
+
         self._copy_cell_range(
             (first_data_row, 1),
             (first_data_row, 25),
@@ -196,13 +197,13 @@ class DefaultReportGenerator:
         current_row = original_header_row
 
         for header_value, header_items in grouped_data.items():
-            print(f"HEADER: {header_value} goes into row {current_row}")
+            print(f"HEADER VALUE: {header_value}")
             if current_row != original_header_row:
                 header_tags_dest_ranges.append((current_row, original_header_col))
 
             current_row += 1
             for item in header_items:
-                print(f"ITEM: {item} goes into row {current_row}")
+                print(f"ITEM: {item}")
                 if current_row != first_data_row:
                     data_tags_dest_ranges.append((current_row, 1))
 
@@ -221,14 +222,43 @@ class DefaultReportGenerator:
                 max_row=range_end[0],
                 max_col=range_end[1]
             ):
-                pass
+                self._move_cell(cell[0], dest_row, dest_col, True, True)
 
     def _move_cell(
         self, src_cell: Cell, dest_row: int, dest_col: int, preserve_original: bool = False, move_merged: bool = False
     ):
+        def get_new_cell_position(src_end_cell: Cell, row_diff: int, col_diff: int) -> Cell:
+            new_row_idx = src_end_cell.row + row_diff
+            new_col_idx = src_end_cell.column + col_diff
+            return self.sheet.cell(row=new_row_idx, column=new_col_idx)
+
         dest_cell = self.sheet.cell(row=dest_row, column=dest_col, value=src_cell.value)
         if preserve_original:
             self._copy_cell_style(src_cell, dest_cell)
+
+        merges_in_range = []
+        new_merged_ranges = []
+        if move_merged:
+            for merged_range in self.sheet.merged_cells.ranges:
+                merges_in_range.append(str(merged_range))
+                start_cell, end_cell = str(merged_range).split(":")
+                if src_cell.coordinate == start_cell:
+                    src_end_cell = self.sheet[end_cell]
+                    row_diff = dest_row - src_cell.row
+                    col_diff = dest_col - src_cell.col_idx
+
+                    new_end_cell = get_new_cell_position(src_end_cell, row_diff, col_diff)
+                    new_range = f"{get_column_letter(dest_col)}{dest_row}:{get_column_letter(new_end_cell.column)}{new_end_cell.row}"
+                    new_merged_ranges.append(new_range)
+
+            for new_range in new_merged_ranges:
+                self.sheet.merge_cells(new_range)
+
+        if not preserve_original:
+            for merged_range in merges_in_range:
+                print(f"Unmerging {merged_range}")
+                self.sheet.unmerge_cells(merged_range)
+            del self.sheet[src_cell.coordinate]
 
     def _create_header_grouping(self, list_objects: list[Any]) -> dict[str, list[Any]]:
         grouped_data = {}
@@ -249,6 +279,8 @@ class DefaultReportGenerator:
         # calculate the number of rows that need to be inserted
         num_of_new_rows = sum(len(objs) for objs in grouped_data.values()) + len(grouped_data) - 2
 
+        # Save current merged cells and styles
+        merged_cells = list(self.sheet.merged_cells.ranges)
         # insert the rows
         data_tags_row = original_header_row + 1
         # TODO need to figure this out, here the styling, merges, alignments and everything gets messed up
@@ -278,7 +310,8 @@ class DefaultReportGenerator:
 
     @staticmethod
     def _copy_cell_style(src: Cell, dest: Cell):
-        dest.value = src.value
+        if not isinstance(src, MergedCell):
+            dest.value = src.value
         if src.has_style:
             dest.font = copy(src.font)
             dest.border = copy(src.border)
