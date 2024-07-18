@@ -199,7 +199,7 @@ class DefaultReportGenerator:
                 header_tags_dest_ranges.append((current_row, original_header_col))
 
             current_row += 1
-            for item in header_items:
+            for _ in header_items:
                 if current_row != first_data_row:
                     data_tags_dest_ranges.append((current_row, 1))
 
@@ -271,17 +271,10 @@ class DefaultReportGenerator:
     ):
         # calculate the number of rows that need to be inserted
         num_of_new_rows = sum(len(objs) for objs in grouped_data.values()) + len(grouped_data) - 2
-
-        # insert the rows
         data_tags_row = original_header_row + 1
-        # TODO need to figure this out, here the styling, merges, alignments and everything gets messed up
-        # because of how openpyxl does the insert row - it shifts down only the cell content, all the styling on the
-        # source and destination cells remain the same and it breaks the template
         self._insert_rows(data_tags_row, num_of_new_rows)
 
     def _insert_rows(self, row_idx, cnt, copy_style=True, fill_formulae=True, max_column=None):
-        """Inserts new (empty) rows into worksheet at specified row index."""
-        # Adjust row index if inserting above
         cell_re = re.compile("(?P<col>\$?[A-Z]+)(?P<row>\$?\d+)")
 
         initial_row_idx = row_idx
@@ -303,59 +296,49 @@ class DefaultReportGenerator:
                 merged_cells_to_shift.append((min_col, min_row, max_col, max_row))
                 self.sheet.unmerge_cells(str(merged_range))
 
-        # First, we shift all cells down cnt rows...
         old_cells = set()
         new_cells = dict()
         for c in self.sheet._cells.values():
-
-            old_coor = c.coordinate
-
-            # Shift all references to anything below row_idx
-            if c.data_type == 'f':  # if the cell contains a formula
+            if c.data_type == 'f':
                 c.value = cell_re.sub(
                     replace,
                     c.value
-                )  # replace cell references in the formula
+                )
 
-            if c.row > row_idx:  # if the current row is below the row where we start the insertion
-                old_coor = c.coordinate
+            if c.row > row_idx:
                 col_idx = c.col_idx if isinstance(c, Cell) else c.column  # handles MergedCell
-                old_cells.add((c.row, col_idx))  # add that to the old_cells set
-                c.row += cnt  # increase the row of the current cell by the number of rows we need to insert
-                new_cells[(c.row, col_idx)] = c  # add that to the new_cells dict where the value is the cell itself
+                old_cells.add((c.row, col_idx))
+                c.row += cnt
+                new_cells[(c.row, col_idx)] = c
 
-        for coor in old_cells:  # iterating over the coordinates of old cells
-            del self.sheet._cells[coor]  # deleting old cells
+        for coordinate in old_cells:
+            del self.sheet._cells[coordinate]
         self.sheet._cells.update(new_cells)
 
-        # Next, we need to shift all the Row Dimensions below our new rows down by cnt...
         for row in range(len(self.sheet.row_dimensions) - 1 + cnt, row_idx + cnt, -1):
             new_rd = copy(self.sheet.row_dimensions[row - cnt])
             new_rd.index = row
             self.sheet.row_dimensions[row] = new_rd
             del self.sheet.row_dimensions[row - cnt]
 
-        # Now, create our new rows, with all the pretty cells
         row_idx += 1
-        for row in range(row_idx,
-                         row_idx + cnt):  # iterating over all the rows, starting from the one where the insertion starts + 1 until we add a total of `cnt` number of rows
-            # Create a Row Dimension for our new row
+        for row in range(row_idx, row_idx + cnt):
             new_rd = copy(self.sheet.row_dimensions[row - 1])
             new_rd.index = row
             self.sheet.row_dimensions[row] = new_rd
-            for col in range(1, 7 + 1):  # iterating over all the columns in the current row
+            for col in range(1, 25 + 1):
                 col_letter = get_column_letter(col)
                 cell = self.sheet.cell(row=row, column=col)
-                cell.value = None  # remove its value
+                cell.value = None
                 source = self.sheet.cell(row=row - 1, column=col)
 
-                if copy_style:  # and we are copying its style
+                if copy_style:
                     cell.number_format = source.number_format
                     cell.font = source.font.copy()
                     cell.alignment = source.alignment.copy()
                     cell.border = source.border.copy()
                     cell.fill = source.fill.copy()
-                if fill_formulae and source.data_type == 'f':  # updating the formulas if needed
+                if fill_formulae and source.data_type == 'f':
                     cell.value = re.sub(
                         "(\$?[A-Z]{1,3}\$?)%d" % (row - 1),
                         lambda m: m.group(1) + str(row),
@@ -363,7 +346,6 @@ class DefaultReportGenerator:
                     )
                     cell.data_type = 'f'
 
-        # Check for Merged Cell Ranges that need to be expanded to contain new cells
         new_merged_ranges = []
         for min_col, min_row, max_col, max_row in merged_cells_to_shift:
             if min_row >= row_idx:
