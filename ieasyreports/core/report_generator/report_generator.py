@@ -1,12 +1,10 @@
 import io
 import re
 from copy import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 import openpyxl
 from openpyxl.cell import Cell, MergedCell
-from openpyxl.formula.translate import Translator
-from openpyxl.styles import Alignment, Font
-from openpyxl.utils import get_column_letter, coordinate_to_tuple
+from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.worksheet.worksheet import Worksheet
 import os
 
@@ -197,13 +195,11 @@ class DefaultReportGenerator:
         current_row = original_header_row
 
         for header_value, header_items in grouped_data.items():
-            print(f"HEADER VALUE: {header_value}")
             if current_row != original_header_row:
                 header_tags_dest_ranges.append((current_row, original_header_col))
 
             current_row += 1
             for item in header_items:
-                print(f"ITEM: {item}")
                 if current_row != first_data_row:
                     data_tags_dest_ranges.append((current_row, 1))
 
@@ -216,13 +212,9 @@ class DefaultReportGenerator:
     ) -> None:
         for dest_range_start in dest_ranges:
             dest_row, dest_col = dest_range_start
-            for cell in self.sheet.iter_rows(
-                min_row=range_start[0],
-                min_col=range_start[1],
-                max_row=range_end[0],
-                max_col=range_end[1]
-            ):
-                self._move_cell(cell[0], dest_row, dest_col, True, True)
+            for col in range(range_start[1], range_end[1] + 1):
+                src_cell = self.sheet.cell(row=range_start[0], column=col)
+                self._move_cell(src_cell, dest_row, col, True, True)
 
     def _move_cell(
         self, src_cell: Cell, dest_row: int, dest_col: int, preserve_original: bool = False, move_merged: bool = False
@@ -232,6 +224,9 @@ class DefaultReportGenerator:
             new_col_idx = src_end_cell.column + col_diff
             return self.sheet.cell(row=new_row_idx, column=new_col_idx)
 
+        if src_cell.data_type == 'f':
+            return  # we already handled the formulas
+
         dest_cell = self.sheet.cell(row=dest_row, column=dest_col, value=src_cell.value)
         if preserve_original:
             self._copy_cell_style(src_cell, dest_cell)
@@ -240,7 +235,6 @@ class DefaultReportGenerator:
         new_merged_ranges = []
         if move_merged:
             for merged_range in self.sheet.merged_cells.ranges:
-                merges_in_range.append(str(merged_range))
                 start_cell, end_cell = str(merged_range).split(":")
                 if src_cell.coordinate == start_cell:
                     src_end_cell = self.sheet[end_cell]
@@ -256,7 +250,6 @@ class DefaultReportGenerator:
 
         if not preserve_original:
             for merged_range in merges_in_range:
-                print(f"Unmerging {merged_range}")
                 self.sheet.unmerge_cells(merged_range)
             del self.sheet[src_cell.coordinate]
 
@@ -279,34 +272,107 @@ class DefaultReportGenerator:
         # calculate the number of rows that need to be inserted
         num_of_new_rows = sum(len(objs) for objs in grouped_data.values()) + len(grouped_data) - 2
 
-        # Save current merged cells and styles
-        merged_cells = list(self.sheet.merged_cells.ranges)
         # insert the rows
         data_tags_row = original_header_row + 1
         # TODO need to figure this out, here the styling, merges, alignments and everything gets messed up
         # because of how openpyxl does the insert row - it shifts down only the cell content, all the styling on the
         # source and destination cells remain the same and it breaks the template
-        self.sheet.insert_rows(data_tags_row + 1, num_of_new_rows)
+        self._insert_rows(data_tags_row, num_of_new_rows)
 
-    def _insert_rows_with_styles(self, start_row: int, num_rows: int):
-        for _ in range(num_rows):
-            self.sheet.insert_rows(start_row)
-            self._copy_styles_and_merges(start_row - 1, start_row)
+    def _insert_rows(self, row_idx, cnt, copy_style=True, fill_formulae=True, max_column=None):
+        """Inserts new (empty) rows into worksheet at specified row index."""
+        # Adjust row index if inserting above
+        cell_re = re.compile("(?P<col>\$?[A-Z]+)(?P<row>\$?\d+)")
 
-    def _copy_styles_and_merges(self, src_row: int, dest_row: int):
-        for col in range(1, self.sheet.max_column + 1):
-            src_cell = self.sheet.cell(row=src_row, column=col)
-            dest_cell = self.sheet.cell(row=dest_row, column=col)
-            if src_cell.has_style:
-                self._copy_cell_style(src_cell, dest_cell)
-            if isinstance(src_cell, MergedCell):
-                self._merge_cells(dest_cell.coordinate)
+        initial_row_idx = row_idx
 
-    def _merge_cells(self, cell_coordinate: str):
-        for merge in self.sheet.merged_cells.ranges:
-            if cell_coordinate in merge:
-                self.sheet.merge_cells(str(merge))
-                break
+        max_column = max_column or self.sheet.max_column
+
+        def replace(m):
+            current_row = m.group('row')
+            prefix = "$" if current_row.find("$") != -1 else ""
+            current_row = int(current_row.replace("$", ""))
+            current_row += cnt if current_row > initial_row_idx else 0
+            return m.group('col') + prefix + str(current_row)
+
+        # Unmerge cells that will be shifted
+        merged_cells_to_shift = []
+        for merged_range in list(self.sheet.merged_cells.ranges):
+            min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
+            if min_row >= row_idx or max_row >= row_idx:
+                merged_cells_to_shift.append((min_col, min_row, max_col, max_row))
+                self.sheet.unmerge_cells(str(merged_range))
+
+        # First, we shift all cells down cnt rows...
+        old_cells = set()
+        new_cells = dict()
+        for c in self.sheet._cells.values():
+
+            old_coor = c.coordinate
+
+            # Shift all references to anything below row_idx
+            if c.data_type == 'f':  # if the cell contains a formula
+                c.value = cell_re.sub(
+                    replace,
+                    c.value
+                )  # replace cell references in the formula
+
+            if c.row > row_idx:  # if the current row is below the row where we start the insertion
+                old_coor = c.coordinate
+                col_idx = c.col_idx if isinstance(c, Cell) else c.column  # handles MergedCell
+                old_cells.add((c.row, col_idx))  # add that to the old_cells set
+                c.row += cnt  # increase the row of the current cell by the number of rows we need to insert
+                new_cells[(c.row, col_idx)] = c  # add that to the new_cells dict where the value is the cell itself
+
+        for coor in old_cells:  # iterating over the coordinates of old cells
+            del self.sheet._cells[coor]  # deleting old cells
+        self.sheet._cells.update(new_cells)
+
+        # Next, we need to shift all the Row Dimensions below our new rows down by cnt...
+        for row in range(len(self.sheet.row_dimensions) - 1 + cnt, row_idx + cnt, -1):
+            new_rd = copy(self.sheet.row_dimensions[row - cnt])
+            new_rd.index = row
+            self.sheet.row_dimensions[row] = new_rd
+            del self.sheet.row_dimensions[row - cnt]
+
+        # Now, create our new rows, with all the pretty cells
+        row_idx += 1
+        for row in range(row_idx,
+                         row_idx + cnt):  # iterating over all the rows, starting from the one where the insertion starts + 1 until we add a total of `cnt` number of rows
+            # Create a Row Dimension for our new row
+            new_rd = copy(self.sheet.row_dimensions[row - 1])
+            new_rd.index = row
+            self.sheet.row_dimensions[row] = new_rd
+            for col in range(1, 7 + 1):  # iterating over all the columns in the current row
+                col_letter = get_column_letter(col)
+                cell = self.sheet.cell(row=row, column=col)
+                cell.value = None  # remove its value
+                source = self.sheet.cell(row=row - 1, column=col)
+
+                if copy_style:  # and we are copying its style
+                    cell.number_format = source.number_format
+                    cell.font = source.font.copy()
+                    cell.alignment = source.alignment.copy()
+                    cell.border = source.border.copy()
+                    cell.fill = source.fill.copy()
+                if fill_formulae and source.data_type == 'f':  # updating the formulas if needed
+                    cell.value = re.sub(
+                        "(\$?[A-Z]{1,3}\$?)%d" % (row - 1),
+                        lambda m: m.group(1) + str(row),
+                        source.value
+                    )
+                    cell.data_type = 'f'
+
+        # Check for Merged Cell Ranges that need to be expanded to contain new cells
+        new_merged_ranges = []
+        for min_col, min_row, max_col, max_row in merged_cells_to_shift:
+            if min_row >= row_idx:
+                min_row += cnt
+                max_row += cnt
+            new_merged_ranges.append(f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{max_row}")
+
+        for merged_range in new_merged_ranges:
+            self.sheet.merge_cells(str(merged_range))
 
     @staticmethod
     def _copy_cell_style(src: Cell, dest: Cell):
