@@ -160,16 +160,42 @@ class DefaultReportGenerator:
             for cell in cells:
                 try:
                     cell.value = tag.replace(cell.value)
-                    print(cell)
                 except Exception as e:
                     raise InvalidTagException(f"Error replacing tag {tag} in cell {cell.coordinate}: {e}")
 
-    def _handle_header_and_data_tags(self, list_objects: list[Any]) -> None:
+    def _handle_header_and_data_tags(self, grouped_data: dict[str, list[Any]]) -> None:
+        original_header_cell = self.header_tag_info["cell"]
+        original_header_row = original_header_cell.row
+        original_header_col = original_header_cell.col_idx
+        current_row = original_header_row
+        for header_value, item_group in grouped_data.items():
+            cell = self.sheet.cell(
+                row=current_row,
+                column=original_header_col
+            )
+            cell.value = header_value
+            for item in item_group:
+                for idx, data_tag in enumerate(self.data_tags_info):
+                    print(idx)
+                    tag = data_tag["tag"]
+                    print(tag)
+                    # TODO figure this out
+                    tag.set_context({"obj": item})
+                    data_cell = self.sheet.cell(row=current_row + 1, column=data_tag["cell"].column)
+                    print(data_tag["cell"])
+                    data_value = tag.replace(data_tag["cell"].value)
+                    print(data_value)
+                    data_cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column)
+                    data_cell.value = data_value
+
+            current_row += len(item_group)
+
+    def _prepare_structure(self, grouped_data: dict[str, list[Any]]) -> None:
         original_header_cell = self.header_tag_info["cell"]
         original_header_row = original_header_cell.row
         original_header_col = original_header_cell.col_idx
         first_data_row = original_header_row + 1
-        grouped_data = self._create_header_grouping(list_objects)
+
         self._insert_empty_rows_for_data(grouped_data, original_header_row)
         header_dest_ranges, data_dest_ranges = self._get_cell_copy_ranges(
             grouped_data, original_header_row, original_header_col, first_data_row
@@ -274,21 +300,11 @@ class DefaultReportGenerator:
         data_tags_row = original_header_row + 1
         self._insert_rows(data_tags_row, num_of_new_rows)
 
-    def _insert_rows(self, row_idx, cnt, copy_style=True, fill_formulae=True, max_column=None):
-        cell_re = re.compile("(?P<col>\$?[A-Z]+)(?P<row>\$?\d+)")
+    @staticmethod
+    def _get_cell_regular_expression() -> re.Pattern:
+        return re.compile("(?P<col>\$?[A-Z]+)(?P<row>\$?\d+)")
 
-        initial_row_idx = row_idx
-
-        max_column = max_column or self.sheet.max_column
-
-        def replace(m):
-            current_row = m.group('row')
-            prefix = "$" if current_row.find("$") != -1 else ""
-            current_row = int(current_row.replace("$", ""))
-            current_row += cnt if current_row > initial_row_idx else 0
-            return m.group('col') + prefix + str(current_row)
-
-        # Unmerge cells that will be shifted
+    def _unmerge_cells(self, row_idx: int) -> list[tuple[int, int, int, int]]:
         merged_cells_to_shift = []
         for merged_range in list(self.sheet.merged_cells.ranges):
             min_col, min_row, max_col, max_row = range_boundaries(str(merged_range))
@@ -296,70 +312,99 @@ class DefaultReportGenerator:
                 merged_cells_to_shift.append((min_col, min_row, max_col, max_row))
                 self.sheet.unmerge_cells(str(merged_range))
 
+        return merged_cells_to_shift
+
+    def _shift_cells(self, row_idx: int, count: int, replace: Callable) -> None:
+        cell_re = self._get_cell_regular_expression()
         old_cells = set()
         new_cells = dict()
         for c in self.sheet._cells.values():
             if c.data_type == 'f':
-                c.value = cell_re.sub(
-                    replace,
-                    c.value
-                )
+                c.value = cell_re.sub(replace, c.value)
 
             if c.row > row_idx:
                 col_idx = c.col_idx if isinstance(c, Cell) else c.column  # handles MergedCell
                 old_cells.add((c.row, col_idx))
-                c.row += cnt
+                c.row += count
                 new_cells[(c.row, col_idx)] = c
 
         for coordinate in old_cells:
             del self.sheet._cells[coordinate]
         self.sheet._cells.update(new_cells)
 
-        for row in range(len(self.sheet.row_dimensions) - 1 + cnt, row_idx + cnt, -1):
-            new_rd = copy(self.sheet.row_dimensions[row - cnt])
+
+    def _shift_row_dimensions(self, row_idx: int, count: int) -> None:
+        for row in range(len(self.sheet.row_dimensions) - 1 + count, row_idx + count, -1):
+            new_rd = copy(self.sheet.row_dimensions[row - count])
             new_rd.index = row
             self.sheet.row_dimensions[row] = new_rd
-            del self.sheet.row_dimensions[row - cnt]
+            del self.sheet.row_dimensions[row - count]
+
+    def _remerge_cells(self, merged_cells_to_shift: list[tuple[int, int, int, int]], row_idx: int, count: int) -> None:
+        new_merged_ranges = []
+        for min_col, min_row, max_col, max_row in merged_cells_to_shift:
+            if min_row >= row_idx:
+                min_row += count
+                max_row += count
+            new_merged_ranges.append(f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{max_row}")
+
+        for merged_range in new_merged_ranges:
+            self.sheet.merge_cells(str(merged_range))
+
+    def _find_last_column_with_value(self):
+        max_col = self.sheet.max_column
+        max_row = self.sheet.max_row
+
+        for col in range(max_col, 0, -1):
+            for row in range(1, max_row + 1):
+                if self.sheet.cell(row=row, column=col).value is not None:
+                    return col
+
+        return None
+
+    def _insert_rows(
+        self, row_idx: int, count: int, copy_style: bool = True, fill_formulae: bool = True
+    ):
+        initial_row_idx = row_idx
+        max_column = self._find_last_column_with_value()
+
+        def replace(m):
+            current_row = m.group('row')
+            prefix = "$" if current_row.find("$") != -1 else ""
+            current_row = int(current_row.replace("$", ""))
+            current_row += count if current_row > initial_row_idx else 0
+            return m.group('col') + prefix + str(current_row)
+
+        # Unmerge cells that will be shifted
+        merged_cells_to_shift = self._unmerge_cells(row_idx)
+
+        # Shift cells and rows
+        self._shift_cells(row_idx, count, replace)
 
         row_idx += 1
-        for row in range(row_idx, row_idx + cnt):
+        for row in range(row_idx, row_idx + count):
             new_rd = copy(self.sheet.row_dimensions[row - 1])
             new_rd.index = row
             self.sheet.row_dimensions[row] = new_rd
-            for col in range(1, 25 + 1):
+            for col in range(1, max_column + 1):
                 col_letter = get_column_letter(col)
                 cell = self.sheet.cell(row=row, column=col)
                 cell.value = None
                 source = self.sheet.cell(row=row - 1, column=col)
 
                 if copy_style:
-                    cell.number_format = source.number_format
-                    cell.font = source.font.copy()
-                    cell.alignment = source.alignment.copy()
-                    cell.border = source.border.copy()
-                    cell.fill = source.fill.copy()
+                    self._copy_cell_style(cell, source)
                 if fill_formulae and source.data_type == 'f':
                     cell.value = re.sub(
-                        "(\$?[A-Z]{1,3}\$?)%d" % (row - 1),
-                        lambda m: m.group(1) + str(row),
-                        source.value
+                        "(\$?[A-Z]{1,3}\$?)%d" % (row - 1), lambda m: m.group(1) + str(row), source.value
                     )
                     cell.data_type = 'f'
 
-        new_merged_ranges = []
-        for min_col, min_row, max_col, max_row in merged_cells_to_shift:
-            if min_row >= row_idx:
-                min_row += cnt
-                max_row += cnt
-            new_merged_ranges.append(f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{max_row}")
-
-        for merged_range in new_merged_ranges:
-            self.sheet.merge_cells(str(merged_range))
+        # Re-merge cells
+        self._remerge_cells(merged_cells_to_shift, row_idx, count)
 
     @staticmethod
     def _copy_cell_style(src: Cell, dest: Cell):
-        if not isinstance(src, MergedCell):
-            dest.value = src.value
         if src.has_style:
             dest.font = copy(src.font)
             dest.border = copy(src.border)
@@ -391,14 +436,16 @@ class DefaultReportGenerator:
         if context:
             self._add_global_tag_context(context)
 
-        # self._handle_general_tags()
+        grouped_data = self._create_header_grouping(list_objects)
+        self._prepare_structure(grouped_data)
 
-        if self.header_tag_info:
-            self._handle_header_and_data_tags(list_objects)
+        self._handle_header_and_data_tags(grouped_data)
+        self._handle_general_tags()
 
         if as_stream:
             output = io.BytesIO()
             self.template.save(output)
+            output.seek(0)
             output.seek(0)
             return output
         else:
