@@ -35,7 +35,7 @@ class Tag:
         """Sets the context for the tag."""
         self.context.update(context)
 
-    def replace(self, content, value_only: bool = False):
+    def replace(self, content):
         if "special" in self.context:
             full_tag = self.full_tag(special=self.context.get("special"))
         else:
@@ -47,11 +47,8 @@ class Tag:
                 replacement_value = self.get_value_fn
             if self.has_custom_format():
                 replacement_value = self.custom_number_format_fn(replacement_value)
-
-            if not value_only:
-                return content.replace(full_tag, replacement_value)
-            else:
-                return replacement_value
+            content = content.replace(full_tag, replacement_value)
+        return content
 
     def has_callable_value_fn(self):
         return isinstance(self.get_value_fn, Callable)

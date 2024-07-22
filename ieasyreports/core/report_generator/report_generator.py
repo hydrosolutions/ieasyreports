@@ -174,21 +174,14 @@ class DefaultReportGenerator:
                 column=original_header_col
             )
             cell.value = header_value
+            current_row += 1
             for item in item_group:
                 for idx, data_tag in enumerate(self.data_tags_info):
-                    print(idx)
                     tag = data_tag["tag"]
-                    print(tag)
-                    # TODO figure this out
                     tag.set_context({"obj": item})
-                    data_cell = self.sheet.cell(row=current_row + 1, column=data_tag["cell"].column)
-                    print(data_tag["cell"])
-                    data_value = tag.replace(data_tag["cell"].value)
-                    print(data_value)
-                    data_cell = self.sheet.cell(row=original_header_row + 1, column=data_tag["cell"].column)
-                    data_cell.value = data_value
-
-            current_row += len(item_group)
+                    data_cell = self.sheet.cell(row=current_row, column=data_tag["cell"].column)
+                    data_cell.value = tag.replace(data_cell.value)
+                current_row += 1
 
     def _prepare_structure(self, grouped_data: dict[str, list[Any]]) -> None:
         original_header_cell = self.header_tag_info["cell"]
@@ -283,7 +276,7 @@ class DefaultReportGenerator:
         grouped_data = {}
         for obj in list_objects:
             self.header_tag_info["tag"].set_context({"obj": obj})
-            header_value = self.header_tag_info["tag"].replace(self.header_tag_info["cell"].value, True)
+            header_value = self.header_tag_info["tag"].replace(self.header_tag_info["cell"].value)
 
             if header_value not in grouped_data:
                 grouped_data[header_value] = []
@@ -399,6 +392,7 @@ class DefaultReportGenerator:
                         "(\$?[A-Z]{1,3}\$?)%d" % (row - 1), lambda m: m.group(1) + str(row), source.value
                     )
                     cell.data_type = 'f'
+                    self._copy_cell_style(cell, source)
 
         # Re-merge cells
         self._remerge_cells(merged_cells_to_shift, row_idx, count)
