@@ -13,6 +13,8 @@ class Tag:
         description: str = None,
         value_fn_args: Optional[Dict[Any, Any]] = None,
         custom_number_format_fn: Optional[Callable] = None,
+        header: bool = False,
+        data: bool = False
     ):
         self.name = name
         self.get_value_fn = get_value_fn
@@ -21,6 +23,9 @@ class Tag:
         self.custom_number_format_fn = custom_number_format_fn
         self.settings = tag_settings
         self.context = self.value_fn_args
+        self.data = data
+        self.header = header
+        self.general = not self.data and not self.header
 
     def __repr__(self):
         return self.name
