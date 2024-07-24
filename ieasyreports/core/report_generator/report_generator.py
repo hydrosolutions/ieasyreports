@@ -244,6 +244,8 @@ class DefaultReportGenerator:
             return self.sheet.cell(row=new_row_idx, column=new_col_idx)
 
         if src_cell.data_type == 'f':
+            dest_cell = self.sheet.cell(row=dest_row, column=dest_col)
+            self._copy_cell_style(src_cell, dest_cell)
             return  # we already handled the formulas
 
         dest_cell = self.sheet.cell(row=dest_row, column=dest_col, value=src_cell.value)
@@ -380,7 +382,6 @@ class DefaultReportGenerator:
             new_rd.index = row
             self.sheet.row_dimensions[row] = new_rd
             for col in range(1, max_column + 1):
-                col_letter = get_column_letter(col)
                 cell = self.sheet.cell(row=row, column=col)
                 cell.value = None
                 source = self.sheet.cell(row=row - 1, column=col)
@@ -392,7 +393,6 @@ class DefaultReportGenerator:
                         "(\$?[A-Z]{1,3}\$?)%d" % (row - 1), lambda m: m.group(1) + str(row), source.value
                     )
                     cell.data_type = 'f'
-                    self._copy_cell_style(cell, source)
 
         # Re-merge cells
         self._remerge_cells(merged_cells_to_shift, row_idx, count)

@@ -47,12 +47,14 @@ class Tag:
             full_tag = self.full_tag()
         if full_tag in content:
             if self.has_callable_value_fn():
-                replacement_value = str(self.get_value_fn(**self.context))
+                replacement_value = self.get_value_fn(**self.context)
             else:
                 replacement_value = self.get_value_fn
             if self.has_custom_format():
                 replacement_value = self.custom_number_format_fn(replacement_value)
-            content = content.replace(full_tag, replacement_value)
+
+            content = content.replace(full_tag, str(replacement_value)) if replacement_value is not None else None
+
         return content
 
     def has_callable_value_fn(self):
