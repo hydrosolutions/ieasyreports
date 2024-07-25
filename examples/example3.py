@@ -1,6 +1,10 @@
 from ieasyreports.core.report_generator import DefaultReportGenerator
 from ieasyreports.core.tags import DefaultDataManager, Tag
+from ieasyreports.settings import TagSettings, ReportGeneratorSettings
 import datetime as dt
+
+report_settings = ReportGeneratorSettings()
+tag_settings = TagSettings()
 
 
 class Author:
@@ -18,23 +22,29 @@ report_author = Author("John", "Doe")
 title_tag = Tag(
     "TITLE",
     lambda author, title: author.get_latest_publication_title(title),
+    tag_settings,
     value_fn_args={"author": report_author, "title": "Report title"}
 )
 author_tag = Tag(
     "AUTHOR",
     lambda author: f"{author.first_name} {author.last_name}",
+    tag_settings,
     value_fn_args={"author": report_author}
 )
 date_tag = Tag(
     "DATE",
     DefaultDataManager.get_localized_date,
+    tag_settings,
     value_fn_args={"date": dt.datetime(2023, 1, 1, 12, 0), "date_format": "medium", "language": "hr_HR"}
 )
 
 # create the ReportGenerator instance
 report_generator = DefaultReportGenerator(
     tags=[title_tag, author_tag, date_tag],
-    template='example1.xlsx'
+    template='example1.xlsx',
+    reports_directory_path=report_settings.report_output_path,
+    templates_directory_path=report_settings.templates_directory_path,
+    tag_settings=tag_settings
 )
 
 report_generator.validate()

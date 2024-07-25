@@ -45,8 +45,6 @@ class DefaultReportGenerator:
         self._check_tags()
         self._check_template_tags()
         self._validate_header_and_data_tags()
-        self._validate_header_tag()
-        self._validate_data_tags()
         self.validated = True
 
     def _get_template_full_path(self) -> str:
@@ -115,11 +113,12 @@ class DefaultReportGenerator:
                 self._categorize_tag_by_type(tag_info, cell)
 
     def _validate_header_and_data_tags(self) -> None:
-        self._validate_header_tag()
-        self._validate_data_tags()
+        if self.requires_header_tag:
+            self._validate_header_tag()
+            self._validate_data_tags()
 
     def _validate_header_tag(self) -> None:
-        if self.requires_header_tag and not self.header_tag_info:
+        if not self.header_tag_info:
             raise MissingHeaderTagException("Header tag is missing in the template.")
 
     def _validate_data_tags(self) -> None:
@@ -430,16 +429,16 @@ class DefaultReportGenerator:
         if context:
             self._add_global_tag_context(context)
 
-        grouped_data = self._create_header_grouping(list_objects)
-        self._prepare_structure(grouped_data)
+        if self.header_tag_info:
+            grouped_data = self._create_header_grouping(list_objects)
+            self._prepare_structure(grouped_data)
+            self._handle_header_and_data_tags(grouped_data)
 
-        self._handle_header_and_data_tags(grouped_data)
         self._handle_general_tags()
 
         if as_stream:
             output = io.BytesIO()
             self.template.save(output)
-            output.seek(0)
             output.seek(0)
             return output
         else:

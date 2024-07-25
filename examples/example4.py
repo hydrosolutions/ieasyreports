@@ -1,9 +1,11 @@
-import random
-
 from ieasyreports.core.report_generator import DefaultReportGenerator
 from ieasyreports.core.tags import DefaultDataManager, Tag
+from ieasyreports.settings import TagSettings, ReportGeneratorSettings
 import datetime as dt
 import random as rd
+
+report_settings = ReportGeneratorSettings()
+tag_settings = TagSettings()
 
 
 class River:
