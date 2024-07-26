@@ -46,7 +46,7 @@ river_6 = River(6, "River 6", "Region C")
 river_7 = River(7, "River 7", "Region D")
 
 rivers = [river_1, river_2, river_3, river_4, river_5, river_6, river_7]
-measurements = [Measurement(random.choice(rivers)) for _ in range(30)]
+measurements = [Measurement(rd.choice(rivers)) for _ in range(30)]
 
 
 def get_measurement_data_for_river_and_day(river: River, day: dt.date, attr: str):
@@ -61,37 +61,49 @@ target_day = Measurement.get_random_date()
 
 region_tag = Tag(
     "REGION",
-    lambda obj: obj.region,
-    "Region where the river is located"
+    lambda obj, **kwargs: obj.region,
+    tag_settings,
+    "Region where the river is located",
+    header=True
 )
 river_tag = Tag(
     "RIVER_NAME",
-    lambda obj: obj.name,
-    "River name"
+    lambda obj, **kwargs: obj.name,
+    tag_settings,
+    "River name",
+    data=True
 )
 measurement_day_tag = Tag(
     "MEASUREMENT_TIMESTAMP",
-    lambda obj: get_measurement_data_for_river_and_day(obj, target_day, "measurement_dt"),
-    "Day of the measurement"
+    lambda obj, **kwargs: get_measurement_data_for_river_and_day(obj, target_day, "measurement_dt"),
+    tag_settings,
+    "Day of the measurement",
+    data=True
 )
 water_level_tag = Tag(
     "WATER_LEVEL",
-    lambda obj: get_measurement_data_for_river_and_day(obj, target_day, "water_level"),
-    "Water level value"
+    lambda obj, **kwargs: get_measurement_data_for_river_and_day(obj, target_day, "water_level"),
+    tag_settings,
+    "Water level value",
+    data=True
 )
 water_discharge_tag = Tag(
     "WATER_DISCHARGE",
-    lambda obj: get_measurement_data_for_river_and_day(obj, target_day, "water_discharge"),
-    "Water discharge value"
+    lambda obj, **kwargs: get_measurement_data_for_river_and_day(obj, target_day, "water_discharge"),
+    tag_settings,
+    "Water discharge value",
+    data=True
 )
 author_tag = Tag(
     "AUTHOR",
     "John Doe",
+    tag_settings,
     "Report author name"
 )
 date_tag = Tag(
     "DATE",
     DefaultDataManager.get_localized_date,
+    tag_settings,
     "Date when the report was generated"
 )
 
@@ -100,6 +112,9 @@ date_tag = Tag(
 report_generator = DefaultReportGenerator(
     tags=[region_tag, river_tag, measurement_day_tag, water_level_tag, water_discharge_tag, author_tag, date_tag],
     template='example2.xlsx',
+    reports_directory_path=report_settings.report_output_path,
+    templates_directory_path=report_settings.templates_directory_path,
+    tag_settings=tag_settings,
     requires_header=True
 )
 
