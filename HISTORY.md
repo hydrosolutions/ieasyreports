@@ -14,3 +14,5 @@ This section provides a short changelog for each version of the library.
 * Documentation update to reflect the latest changes
 * Remove `click` from the requirements, bump `openpyxl` to the latest version
 
+## 1.0.1 (2024-07-29)
+* Remove unnecessary templates
