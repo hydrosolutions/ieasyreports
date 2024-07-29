@@ -1,3 +1,15 @@
+The next example demonstrates the usage of the `Tag` class
+when your replacement function need to receive some arguments.
+
+The same familiar .xlsx template is still in use:
+
+| Title     | Author     | Date     |
+|-----------|------------|----------|
+| {{TITLE}} | {{AUTHOR}} | {{DATE}} |
+
+The code could look something like this:
+
+```python
 from ieasyreports.core.report_generator import DefaultReportGenerator
 from ieasyreports.core.tags import DefaultDataManager, Tag
 from ieasyreports.settings import TagSettings, ReportGeneratorSettings
@@ -49,3 +61,12 @@ report_generator = DefaultReportGenerator(
 
 report_generator.validate()
 report_generator.generate_report(output_filename="example3.xlsx")
+
+```
+
+This results in an `example3.xlsx` file in the `reports` folder.
+The content of the report will be:
+
+| Title                    | Author   | Date         |
+|--------------------------|----------|--------------|
+| Report title by John Doe | John Doe | 1. sij 2023. |

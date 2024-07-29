@@ -1,9 +1,7 @@
 from typing import Any, Callable, Dict, Optional, Union
 
-from ieasyreports.settings import Settings
+from ieasyreports.settings import TagSettings
 from ieasyreports.exceptions import InvalidSpecialParameterException
-
-settings = Settings()
 
 
 class Tag:
@@ -11,15 +9,23 @@ class Tag:
         self,
         name: str,
         get_value_fn: Union[Callable, str],
-        description: Optional[str] = None,
+        tag_settings: TagSettings,
+        description: str = None,
         value_fn_args: Optional[Dict[Any, Any]] = None,
-        custom_number_format_fn: Optional[Callable] = None
+        custom_number_format_fn: Optional[Callable] = None,
+        header: bool = False,
+        data: bool = False
     ):
         self.name = name
         self.get_value_fn = get_value_fn
-        self.value_fn_args = value_fn_args if value_fn_args else {}
         self.description = description
+        self.value_fn_args = value_fn_args if value_fn_args else {}
         self.custom_number_format_fn = custom_number_format_fn
+        self.settings = tag_settings
+        self.context = self.value_fn_args
+        self.data = data
+        self.header = header
+        self.general = not self.data and not self.header
 
     def __repr__(self):
         return self.name
@@ -30,17 +36,25 @@ class Tag:
     def __hash__(self):
         return hash(self.name)
 
-    def replace(self, content, **kwargs):
-        if "special" in kwargs:
-            full_tag = self.full_tag(special=kwargs.pop("special"))
+    def set_context(self, context: Dict[str, Any]):
+        """Sets the context for the tag."""
+        self.context.update(context)
+
+    def replace(self, content):
+        if "special" in self.context:
+            full_tag = self.full_tag(special=self.context.get("special"))
         else:
             full_tag = self.full_tag()
         if full_tag in content:
-            replacement_value = str(self.get_value_fn(**kwargs, **self.value_fn_args)) if \
-                self.has_callable_value_fn() else self.get_value_fn
+            if self.has_callable_value_fn():
+                replacement_value = self.get_value_fn(**self.context)
+            else:
+                replacement_value = self.get_value_fn
             if self.has_custom_format():
                 replacement_value = self.custom_number_format_fn(replacement_value)
-            content = content.replace(full_tag, replacement_value)
+
+            content = content.replace(full_tag, str(replacement_value)) if replacement_value is not None else None
+
         return content
 
     def has_callable_value_fn(self):
@@ -56,11 +70,11 @@ class Tag:
 
     def full_tag(self, special=None):
         if special:
-            if special not in (settings.header_tag, settings.data_tag):
+            if special not in (self.settings.header_tag, self.settings.data_tag):
                 raise InvalidSpecialParameterException(f'{special} is not a supported value.')
             else:
-                special_extension = f'{special}{settings.split_symbol}'
+                special_extension = f'{special}{self.settings.split_symbol}'
         else:
             special_extension = ''
 
-        return f'{settings.tag_start_symbol}{special_extension}{self.name}{settings.tag_end_symbol}'
+        return f'{self.settings.tag_start_symbol}{special_extension}{self.name}{self.settings.tag_end_symbol}'

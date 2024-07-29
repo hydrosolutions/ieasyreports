@@ -1,3 +1,15 @@
+This examples demonstrates how to use the Tag class when
+you require a function for replacing the tags with some values.
+
+For simplicity, let's say we're still working with the same `example1.xlsx` template:
+
+| Title     | Author     | Date     |
+|-----------|------------|----------|
+| {{TITLE}} | {{AUTHOR}} | {{DATE}} |
+
+For this example, the functions needed can be used without any arguments:
+
+```python
 from ieasyreports.core.report_generator import DefaultReportGenerator
 from ieasyreports.core.tags import Tag, DefaultDataManager
 from ieasyreports.settings import TagSettings, ReportGeneratorSettings
@@ -26,3 +38,14 @@ report_generator = DefaultReportGenerator(
 
 report_generator.validate()
 report_generator.generate_report(output_filename="example2.xlsx")
+```
+
+
+This should produce an `example2.xlsx` file in the `reports` folder, and it's content
+should be the following:
+
+| Title                  | Author   | Date            |
+|------------------------|----------|-----------------|
+| Water Discharge Report | John Doe | July 29, 2024   |
+
+The value of the date tag depends on what date it is when running the script.
