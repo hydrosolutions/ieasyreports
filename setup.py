@@ -12,7 +12,7 @@ with open('HISTORY.md') as history_file:
 
 requirements = ['Babel==2.15.0', 'openpyxl==3.1.5', 'pydantic==2.5.2', 'pydantic-settings==2.2.0']
 
-test_requirements = ['pytest>=3', 'myst_parser']
+test_requirements = ['pytest>=3', 'myst_parser', 'bumpversion']
 
 setup(
     author="Davor Škalec",
