@@ -1,17 +1,16 @@
 Welcome to iEasyReports's documentation!
-======================================
+========================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
-   readme
-   installation
-   usage
-   customization
-   modules
-   authors
-   history
+   readme.md
+   installation.md
+   usage.md
+   development.md
+   authors.md
+   history.md
 
 Indices and tables
 ==================

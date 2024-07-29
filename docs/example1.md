@@ -3,8 +3,8 @@ that should be replaced with simple string values.
 Let's say this template is called `example1.xlsx`.
 
 
-|   Title   |   Author   |   Date   |
-| --------- | ---------- | -------- |
+| Title     | Author     | Date     |
+|-----------|------------|----------|
 | {{TITLE}} | {{AUTHOR}} | {{DATE}} |
 
 
@@ -54,6 +54,6 @@ in the `report_output_path` setting in the library's Settings object.
 The default is that it will create a `reports` folder in the same location from where you are running this code.
 The content of the output report should be the following:
 
-|         Title          |  Author  |       Date        |
-| -----------------------| -------- | ----------------- |
+| Title                  | Author   | Date              |
+|------------------------|----------|-------------------|
 | Water Discharge Report | JOHN DOE | January 1st, 2023 |
