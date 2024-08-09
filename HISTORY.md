@@ -16,3 +16,6 @@ This section provides a short changelog for each version of the library.
 
 ## 1.0.1 (2024-07-29)
 * Remove unnecessary templates
+
+# 1.1.0 (2024-08-09)
+* Introduce the `prepare_list_objects` method as an entrypoint to manipulate the objects list before grouping
