@@ -438,7 +438,6 @@ class DefaultReportGenerator:
 
         if self.header_tag_info:
             grouped_data = self._create_header_grouping(sorted_list_objects)
-            print(grouped_data)
             self._prepare_structure(grouped_data)
             self._handle_header_and_data_tags(grouped_data)
 
