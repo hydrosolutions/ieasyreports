@@ -286,6 +286,13 @@ class DefaultReportGenerator:
 
         return grouped_data
 
+    def prepare_list_objects(self, list_objects: list[Any]) -> list[Any]:
+        """
+        Can be used to do any required manipulations on the list of objects for the grouping
+        before the grouping occurs.
+        """
+        return list_objects
+
     def _insert_empty_rows_for_data(
         self, grouped_data: dict[str, list[Any]], original_header_row: int
     ):
@@ -424,13 +431,14 @@ class DefaultReportGenerator:
                 "Template must be validated first. Did you forget to call the `.validate()` method?"
             )
 
-        list_objects = list_objects or []
+        sorted_list_objects = self.prepare_list_objects(list_objects)
 
         if context:
             self._add_global_tag_context(context)
 
         if self.header_tag_info:
-            grouped_data = self._create_header_grouping(list_objects)
+            grouped_data = self._create_header_grouping(sorted_list_objects)
+            print(grouped_data)
             self._prepare_structure(grouped_data)
             self._handle_header_and_data_tags(grouped_data)
 
