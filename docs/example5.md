@@ -215,10 +215,16 @@ class MyReportGeneratorSettings(ReportGeneratorSettings):
 report_generator_settings = MyReportGeneratorSettings()
 tag_settings = TagSettings()
 
+
 class MyCustomReportGenerator(DefaultReportGenerator):
     def validate(self):
         super().validate()
         # your own validation logic below
+
+    def prepare_list_objects(self, list_objects: list[Any]) -> list[Any]:
+        super().prepare_list_objects(list_objects)
+        # do some kind of manipulation, for example sort the objects in a particular order
+        return list_objects
 
 
 report_generator = MyCustomReportGenerator(
